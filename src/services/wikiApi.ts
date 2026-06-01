@@ -124,79 +124,66 @@ export async function fetchWikiLinks(title: string, lang: string, limit: number 
       'further reading', 'see also', 'external links', 'external link', 'official website'
     ];
 
-    // Select all children of the container
-    const children = Array.from(container.children);
-    let cutoffReached = false;
-
-    for (const child of children) {
-      if (cutoffReached) {
-        child.remove();
-        continue;
-      }
-
-      // Check if this child element represents or contains one of our cutoff headings
-      const headingText = child.textContent?.trim().toLowerCase() || '';
-      
-      // Is it a heading element?
-      const isHeading = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(child.tagName);
-      
-      // Or does it contain a headline?
-      const hasHeadline = child.querySelector('.mw-headline') || child.classList.contains('mw-heading');
-
-      if (isHeading || hasHeadline) {
-        // Check if any of our cutoff headings is a substring of this heading's text
-        const matchesCutoff = cutoffHeadings.some(h => headingText.includes(h.toLowerCase()));
-        if (matchesCutoff) {
-          cutoffReached = true;
-          child.remove();
-        }
-      }
-    }
-
-    // Now, select all anchor tags (a) to capture all localized variant URLs (like /zh-tw/, /zh-hans/, etc.)
-    const anchors = container.querySelectorAll('a');
+    // Select all headings, headlines, and anchor tags inside the container in natural document order
+    const allElements = container.querySelectorAll('h1, h2, h3, h4, h5, h6, .mw-headline, a');
     const linkTitles: string[] = [];
     const seen = new Set<string>();
+    let cutoffReached = false;
 
     const wikiHrefRegex = /^(?:https?:\/\/[a-z-]+\.wikipedia\.org)?\/(wiki|zh|zh-[a-z]+)\/([^?#]+)/i;
 
-    anchors.forEach((a) => {
-      const href = a.getAttribute('href');
-      if (!href) return;
+    allElements.forEach((el) => {
+      const tagName = el.tagName.toLowerCase();
 
-      const hrefMatch = href.match(wikiHrefRegex);
-      if (!hrefMatch) return; // Skip non-Wikipedia article links
+      if (tagName === 'a') {
+        // Skip links once the cutoff section is reached
+        if (cutoffReached) return;
 
-      // Attempt to extract title from the title attribute, otherwise fallback to URL decoding
-      let linkTitle = a.getAttribute('title');
-      if (!linkTitle) {
-        try {
-          linkTitle = decodeURIComponent(hrefMatch[2]).replace(/_/g, ' ');
-        } catch (e) {
-          return; // Skip if URL decoding fails
+        const a = el as HTMLAnchorElement;
+        const href = a.getAttribute('href');
+        if (!href) return;
+
+        const hrefMatch = href.match(wikiHrefRegex);
+        if (!hrefMatch) return; // Skip non-Wikipedia article links
+
+        // Attempt to extract title from the title attribute, otherwise fallback to URL decoding
+        let linkTitle = a.getAttribute('title');
+        if (!linkTitle) {
+          try {
+            linkTitle = decodeURIComponent(hrefMatch[2]).replace(/_/g, ' ');
+          } catch (e) {
+            return; // Skip if URL decoding fails
+          }
         }
-      }
 
-      if (!linkTitle) return;
+        if (!linkTitle) return;
 
-      const cleanT = linkTitle.trim();
-      const lowerT = cleanT.toLowerCase();
+        const cleanT = linkTitle.trim();
+        const lowerT = cleanT.toLowerCase();
 
-      // Filter out namespace pages (like File:, Template:, Category:, Help:, Special:, etc.)
-      if (cleanT.includes(':')) return;
+        // Filter out namespace pages (like File:, Template:, Category:, Help:, Special:, etc.)
+        if (cleanT.includes(':')) return;
 
-      // Filter out lists, disambiguation pages, or other non-article targets
-      if (
-        lowerT.startsWith('list of') ||
-        lowerT.startsWith('列表') ||
-        lowerT.includes('disambiguation') ||
-        lowerT.includes('消歧義')
-      ) return;
+        // Filter out lists, disambiguation pages, or other non-article targets
+        if (
+          lowerT.startsWith('list of') ||
+          lowerT.startsWith('列表') ||
+          lowerT.includes('disambiguation') ||
+          lowerT.includes('消歧義')
+        ) return;
 
-      // Avoid adding duplicates in the same page
-      if (!seen.has(lowerT)) {
-        seen.add(lowerT);
-        linkTitles.push(cleanT);
+        // Avoid adding duplicates in the same page
+        if (!seen.has(lowerT)) {
+          seen.add(lowerT);
+          linkTitles.push(cleanT);
+        }
+      } else {
+        // It's a heading element or headline
+        const headingText = el.textContent?.trim().toLowerCase() || '';
+        const matchesCutoff = cutoffHeadings.some(h => headingText.includes(h.toLowerCase()));
+        if (matchesCutoff) {
+          cutoffReached = true;
+        }
       }
     });
 

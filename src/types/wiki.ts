@@ -10,6 +10,8 @@ export interface WikiNode extends d3.SimulationNodeDatum {
   isDeadEnd?: boolean; // Whether the node has no outgoing mainlinks
   lang: string;        // The language of this specific node (e.g. "zh", "en", "ja")
   depth?: number;      // Hierarchical generation depth (0 = root, 1 = children, 2 = grandchildren...)
+  treeX?: number;      // Target X coordinate in Horizontal Tree Layout
+  treeY?: number;      // Target Y coordinate in Horizontal Tree Layout
 }
 
 export interface WikiLink extends d3.SimulationLinkDatum<WikiNode> {

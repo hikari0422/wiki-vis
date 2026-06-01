@@ -11,17 +11,21 @@ import { DetailSidebar } from './components/DetailSidebar';
 import { ContextMenu } from './components/ContextMenu';
 import { Toast } from './components/Toast';
 import type { ToastMessage, ToastType } from './components/Toast';
-import { Compass, Layers, Share2 } from 'lucide-react';
+import { Compass, Layers, Share2, GitFork } from 'lucide-react';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SubArticlesPanel } from './components/SubArticlesPanel';
+import { PathTimeline } from './components/PathTimeline';
 
 export default function App() {
   // Graph visual states
   const [nodes, setNodes] = useState<WikiNode[]>([]);
   const [links, setLinks] = useState<WikiLink[]>([]);
   
-  // Layout mode state: 'hierarchical' | 'radial'
-  const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'radial'>('hierarchical');
+  // Layout mode state: 'hierarchical' | 'radial' | 'tree'
+  const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'radial' | 'tree'>('hierarchical');
+  
+  // Expanded node IDs state (keeps branches locked open in Focused Pathway mode)
+  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
   
   // Interaction states
   const [selectedNode, setSelectedNode] = useState<WikiNode | null>(null);
@@ -61,7 +65,25 @@ export default function App() {
     }
   };
 
-  const [limit, setLimit] = useState<number>(30); // Node expansion limit per click
+  // Toggle the expansion lock state for a given node
+  const handleToggleNodeExpand = (nodeId: string) => {
+    setExpandedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+        // Robust guard: If node is not loaded yet, explore it immediately to fetch child network
+        const node = nodes.find((n) => n.id === nodeId);
+        if (node && !node.loaded && !node.loading && !node.isDeadEnd) {
+          handleExplore(node);
+        }
+      }
+      return next;
+    });
+  };
+
+  const [limit, setLimit] = useState<number>(5); // Node expansion limit per click
   const [resetZoomTrigger, setResetZoomTrigger] = useState<number>(0);
   
   // Custom overlays
@@ -91,6 +113,7 @@ export default function App() {
     setContextMenu(null);
     setSelectedNode(null);
     setIsSidebarOpen(false);
+    setExpandedNodeIds(new Set());
     
     try {
       // 1. Parse inputs to determine title and language code
@@ -441,6 +464,7 @@ export default function App() {
     setSelectedNode(null);
     setIsSidebarOpen(true);
     setContextMenu(null);
+    setExpandedNodeIds(new Set());
     
     // Smooth transition
     triggerToast(`正將「${node.id}」設為新探索中心...`, 'info');
@@ -485,6 +509,13 @@ export default function App() {
         return src !== node.id && tgt !== node.id;
       })
     );
+
+    // Remove from expandedNodeIds
+    setExpandedNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(node.id);
+      return next;
+    });
 
     triggerToast(`已從白板中移除節點「${node.id}」`, 'info');
   };
@@ -583,7 +614,7 @@ export default function App() {
   }, [limit, selectedNode?.id]);
 
   // Coordinate coordinator that releases locks and toggles modes
-  const handleLayoutModeChange = (mode: 'hierarchical' | 'radial') => {
+  const handleLayoutModeChange = (mode: 'hierarchical' | 'radial' | 'tree') => {
     setLayoutMode(mode);
     setNodes((prevNodes) =>
       prevNodes.map((n) => ({
@@ -593,7 +624,12 @@ export default function App() {
       }))
     );
     setResetZoomTrigger((prev) => prev + 1);
-    triggerToast(`已切換為「${mode === 'hierarchical' ? '直線階層' : '放射網絡'}」排列模式`, 'info');
+    
+    let modeText = '直線階層';
+    if (mode === 'radial') modeText = '放射網絡';
+    if (mode === 'tree') modeText = '樹狀圖譜';
+    
+    triggerToast(`已切換為「${modeText}」排列模式`, 'info');
   };
 
   // Flags non-existent pages in global state
@@ -649,6 +685,7 @@ export default function App() {
   // Filter visible nodes to implement the Focused Pathway Mode
   const visibleNodes = nodes.filter(node => {
     if (activePathSet.has(node.id)) return true;
+    if (expandedNodeIds.has(node.id)) return true;
     
     const parentLink = links.find(l => {
       const tgt = typeof l.target === 'string' ? l.target : l.target.id;
@@ -656,7 +693,7 @@ export default function App() {
     });
     if (parentLink) {
       const src = typeof parentLink.source === 'string' ? parentLink.source : parentLink.source.id;
-      if (src === currentDeepestActiveId) return true;
+      if (src === currentDeepestActiveId || expandedNodeIds.has(src)) return true;
     }
 
     return false;
@@ -677,6 +714,43 @@ export default function App() {
       const tgt = typeof l.target === 'string' ? l.target : l.target.id;
       return src === nodeId || tgt === nodeId;
     }).length;
+  };
+
+  // Calculates the ordered list of nodes in the current active exploration path from root to selected
+  const getActivePathList = (): WikiNode[] => {
+    const pathList: WikiNode[] = [];
+    let currentId = deepestActiveId || selectedNode?.id;
+    
+    if (!currentId && nodes.length > 0) {
+      const root = nodes.find(n => n.isRoot || n.depth === 0) || nodes[0];
+      currentId = root.id;
+    }
+
+    if (!currentId) return pathList;
+
+    let tempId: string | null = currentId;
+    let iterations = 0;
+    while (tempId && iterations < 100) {
+      const foundNode = nodes.find(n => n.id === tempId);
+      if (foundNode) {
+        pathList.unshift(foundNode); // Prepend to sort from Root to leaf
+      }
+      
+      const parentLink = links.find(l => {
+        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+        return tgt === tempId;
+      });
+      
+      if (parentLink) {
+        const src = typeof parentLink.source === 'string' ? parentLink.source : parentLink.source.id;
+        tempId = src;
+      } else {
+        tempId = null;
+      }
+      iterations++;
+    }
+
+    return pathList;
   };
 
   return (
@@ -701,6 +775,8 @@ export default function App() {
           focusSelectedTrigger={focusSelectedTrigger}
           fitScreenTrigger={fitScreenTrigger}
           focusRootTrigger={focusRootTrigger}
+          expandedNodeIds={expandedNodeIds}
+          onToggleNodeExpand={handleToggleNodeExpand}
         />
       ) : (
         /* Empty canvas whiteboard background */
@@ -746,6 +822,8 @@ export default function App() {
         onMarkDeadEnd={handleMarkDeadEnd}
         connectedLinksCount={selectedNode ? getConnectedLinksCount(selectedNode.id) : 0}
         onReSearch={handleReSearch}
+        isExpanded={selectedNode ? expandedNodeIds.has(selectedNode.id) : false}
+        onToggleExpand={() => selectedNode && handleToggleNodeExpand(selectedNode.id)}
       />
 
       {/* 4. Customized Right-Click Operations overlay */}
@@ -792,6 +870,19 @@ export default function App() {
             >
               <Share2 className="w-3.5 h-3.5" />
               <span>放射排列</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLayoutModeChange('tree')}
+              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
+                layoutMode === 'tree'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+              }`}
+              title="水平向右樹狀排列"
+            >
+              <GitFork className="w-3.5 h-3.5 rotate-90" />
+              <span>樹狀排列</span>
             </button>
           </div>
 
@@ -840,6 +931,12 @@ export default function App() {
 
       {/* 6. Sleek Popup alert overlays */}
       <Toast toast={toast} onClose={() => setToast(null)} />
+
+      {/* 7. Bottom Center Breadcrumb Exploration Timeline */}
+      <PathTimeline
+        path={getActivePathList()}
+        onNodeClick={handleNodeClick}
+      />
     </main>
   );
 }

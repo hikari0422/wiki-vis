@@ -6,7 +6,7 @@ import { fetchWikiSummary } from '../services/wikiApi';
 interface WikiGraphProps {
   nodes: WikiNode[];
   links: WikiLink[];
-  layoutMode: 'hierarchical' | 'radial';
+  layoutMode: 'hierarchical' | 'radial' | 'tree';
   onNodeClick: (node: WikiNode) => void;
   onNodeRightClick: (node: WikiNode, e: React.MouseEvent) => void;
   onMarkDeadEnd: (nodeId: string) => void; // Flag non-existent nodes
@@ -16,6 +16,8 @@ interface WikiGraphProps {
   focusSelectedTrigger: number;
   fitScreenTrigger: number;
   focusRootTrigger: number;
+  expandedNodeIds: Set<string>;
+  onToggleNodeExpand: (id: string) => void;
 }
 
 export const WikiGraph: React.FC<WikiGraphProps> = ({
@@ -31,6 +33,8 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
   focusSelectedTrigger,
   fitScreenTrigger,
   focusRootTrigger,
+  expandedNodeIds,
+  onToggleNodeExpand,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -43,6 +47,9 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
   const [hoverCardData, setHoverCardData] = useState<{ extract: string; thumbnail?: string } | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
+
+  // State for tracking the currently hovered node instantly
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   // Debounced node hover listener (350ms to prevent Wikipedia API spamming)
   const handleNodeMouseEnter = (node: WikiNode, e: React.MouseEvent) => {
@@ -635,7 +642,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
               return (
                 <g
                   key={`node-${node.id}`}
-                  className="graph-node select-none"
+                  className="graph-node select-none group/node cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
                     onNodeClick(node);
@@ -645,8 +652,14 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                     e.stopPropagation();
                     onNodeRightClick(node, e);
                   }}
-                  onMouseEnter={(e) => handleNodeMouseEnter(node, e)}
-                  onMouseLeave={handleNodeMouseLeave}
+                  onMouseEnter={(e) => {
+                    setHoveredNodeId(node.id);
+                    handleNodeMouseEnter(node, e);
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredNodeId(null);
+                    handleNodeMouseLeave();
+                  }}
                 >
                   {/* Subtle shadow glow for root or active nodes */}
                   {node.isRoot && (
@@ -700,6 +713,80 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                   >
                     {formatLabel(node.label)}
                   </text>
+
+                  {/* Expansion Lock Lock Icon Switch */}
+                  {node.loaded && !node.isRoot && (
+                    <g
+                      transform={`translate(0, ${getNodeRadiusY(node) - 11})`}
+                      className="cursor-pointer group/toggle pointer-events-auto"
+                      style={{
+                        opacity: (expandedNodeIds.has(node.id) || hoveredNodeId === node.id) ? 1 : 0,
+                        pointerEvents: (expandedNodeIds.has(node.id) || hoveredNodeId === node.id) ? 'auto' : 'none',
+                        transition: 'opacity 200ms ease-in-out',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleNodeExpand(node.id);
+                      }}
+                    >
+                      {/* Interactive circular background glow */}
+                      <circle
+                        cx="0"
+                        cy="3"
+                        r="10"
+                        className={`transition-all duration-300 ${
+                          expandedNodeIds.has(node.id)
+                            ? 'fill-indigo-50/80 stroke-indigo-200/50'
+                            : 'fill-slate-50/50 stroke-transparent group-hover/toggle:fill-slate-100 group-hover/toggle:stroke-slate-200'
+                        }`}
+                        strokeWidth="1"
+                      />
+                      
+                      {/* SVG Lock Icon */}
+                      <g transform="translate(0, 1)" className="transition-all duration-300">
+                        {/* Lock Shackle */}
+                        <path
+                          d={
+                            expandedNodeIds.has(node.id)
+                              ? "M -3 -1 V -4 A 3 3 0 0 1 3 -4 V -1" // Closed shackle
+                              : "M -3 -1 V -4 A 3 3 0 0 1 3 -4 V -2" // Open shackle
+                          }
+                          fill="none"
+                          className={`transition-all duration-300 ${
+                            expandedNodeIds.has(node.id)
+                              ? 'stroke-indigo-600'
+                              : 'stroke-slate-400 group-hover/toggle:stroke-indigo-500'
+                          }`}
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
+                        {/* Lock Body */}
+                        <rect
+                          x="-5"
+                          y="-1"
+                          width="10"
+                          height="7.5"
+                          rx="1.5"
+                          className={`transition-all duration-300 ${
+                            expandedNodeIds.has(node.id)
+                              ? 'fill-indigo-600 stroke-indigo-600'
+                              : 'fill-white stroke-slate-400 group-hover/toggle:stroke-indigo-500'
+                          }`}
+                          strokeWidth="1"
+                        />
+                        {/* Key Hole */}
+                        <circle
+                          cx="0"
+                          cy="2.5"
+                          r="1"
+                          className={`transition-all duration-300 ${
+                            expandedNodeIds.has(node.id) ? 'fill-white' : 'fill-slate-400 group-hover/toggle:fill-indigo-500'
+                          }`}
+                        />
+                      </g>
+                      <title>{expandedNodeIds.has(node.id) ? "取消鎖定展開此分支" : "鎖定展開此分支網路"}</title>
+                    </g>
+                  )}
 
 
                   {/* Loading Spinner underneath the node */}

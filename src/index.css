@@ -79,19 +79,13 @@ html, body, #root {
   }
 }
 
-.graph-node circle {
+.graph-node ellipse {
   animation: circleFadeIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   transform-origin: 0px 0px;
 }
 
 .graph-node text {
   animation: circleFadeIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  transform-origin: 0px 0px;
-}
-
-/* Smooth scale-up for nested elements like expand buttons and spinners */
-.graph-node g {
-  animation: circleFadeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   transform-origin: 0px 0px;
 }
 

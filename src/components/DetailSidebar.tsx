@@ -13,6 +13,8 @@ interface DetailSidebarProps {
   onMarkDeadEnd: (nodeId: string) => void; // Flag non-existent nodes
   connectedLinksCount: number;
   onReSearch: (node: WikiNode) => void; // Added for manual re-search/retry
+  isExpanded: boolean;
+  onToggleExpand: () => void;
 }
 
 export const DetailSidebar: React.FC<DetailSidebarProps> = ({
@@ -25,6 +27,8 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
   onMarkDeadEnd,
   connectedLinksCount,
   onReSearch,
+  isExpanded,
+  onToggleExpand,
 }) => {
   const [summary, setSummary] = useState<string>('');
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
@@ -162,6 +166,32 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
 
         {/* Action Panel (Sticky at bottom) */}
         <div className="border-t border-slate-100 pt-4 flex flex-col gap-2 shrink-0">
+          
+          {/* Toggle Lock Branch */}
+          {!node.isRoot && (
+            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/50 transition-all duration-300">
+              <div className="flex items-center gap-2.5">
+                <Network className={`w-4 h-4 transition-colors ${isExpanded ? 'text-indigo-600' : 'text-slate-400'}`} />
+                <span className="text-xs font-semibold text-slate-700">保持此分支網路展開 (鎖定)</span>
+              </div>
+              <button
+                type="button"
+                onClick={onToggleExpand}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  isExpanded ? 'bg-indigo-600' : 'bg-slate-200'
+                }`}
+                role="switch"
+                aria-checked={isExpanded}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    isExpanded ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          )}
           
           {/* Action: Expand Node */}
           {!node.loaded && !node.isDeadEnd && (
