@@ -12,6 +12,8 @@ import { ContextMenu } from './components/ContextMenu';
 import { Toast } from './components/Toast';
 import type { ToastMessage, ToastType } from './components/Toast';
 import { Compass, Layers, Share2 } from 'lucide-react';
+import { HistoryPanel } from './components/HistoryPanel';
+import { SubArticlesPanel } from './components/SubArticlesPanel';
 
 export default function App() {
   // Graph visual states
@@ -23,7 +25,42 @@ export default function App() {
   
   // Interaction states
   const [selectedNode, setSelectedNode] = useState<WikiNode | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [deepestActiveId, setDeepestActiveId] = useState<string | null>(null);
+  const [exploredLinksMap, setExploredLinksMap] = useState<{ [nodeId: string]: string[] }>({});
+  const [clickHistory, setClickHistory] = useState<WikiNode[]>([]);
+  const [focusSelectedTrigger, setFocusSelectedTrigger] = useState<number>(0);
+  const [fitScreenTrigger, setFitScreenTrigger] = useState<number>(0);
+  const [focusRootTrigger, setFocusRootTrigger] = useState<number>(0);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
+
+  // Helper to add nodes to the click history (unique FIFO queue capped at 10 items)
+  const addToHistory = (node: WikiNode) => {
+    setClickHistory((prev) => {
+      // Remove duplicate if it already exists to bring it to the end (most recent)
+      const filtered = prev.filter((n) => n.id !== node.id);
+      const updated = [...filtered, node];
+      // Limit to 10 items
+      if (updated.length > 10) {
+        return updated.slice(updated.length - 10);
+      }
+      return updated;
+    });
+  };
+
+  // Handle node selection/click events (adds to history, updates active path, zooms, and auto-explores if needed)
+  const handleNodeClick = (node: WikiNode) => {
+    setSelectedNode(node);
+    setIsSidebarOpen(true);
+    setContextMenu(null);
+    setDeepestActiveId(node.id);
+    addToHistory(node);
+
+    if (!node.loaded && !node.loading && !node.isDeadEnd) {
+      handleExplore(node);
+    }
+  };
+
   const [limit, setLimit] = useState<number>(30); // Node expansion limit per click
   const [resetZoomTrigger, setResetZoomTrigger] = useState<number>(0);
   
@@ -44,10 +81,7 @@ export default function App() {
     });
   };
 
-  // Mount showcase: Auto pre-populate whiteboard with initial network to wow user!
-  useEffect(() => {
-    handleSearch('維基百科', 'zh');
-  }, []);
+
 
   /**
    * Search Wikipedia and initialize the graph with the target page as the root.
@@ -56,6 +90,7 @@ export default function App() {
     setSearchLoading(true);
     setContextMenu(null);
     setSelectedNode(null);
+    setIsSidebarOpen(false);
     
     try {
       // 1. Parse inputs to determine title and language code
@@ -86,6 +121,8 @@ export default function App() {
 
       setNodes([rootNode]);
       setLinks([]);
+      setDeepestActiveId(targetTitle);
+      setClickHistory([rootNode]);
       
       triggerToast(`成功定位條目「${targetTitle}」，點擊節點下方的「+」展開網絡！`, 'success');
       
@@ -116,10 +153,19 @@ export default function App() {
     }
 
     try {
-      // 2. Fetch sublinks
-      const fetchedTitles = await fetchWikiLinks(node.id, node.lang, limit);
+      // 2. Fetch sublinks (always fetch all links to cache them, enabling instant slider drag updates)
+      let allTitles: string[];
+      if (exploredLinksMap[node.id]) {
+        allTitles = exploredLinksMap[node.id];
+      } else {
+        allTitles = await fetchWikiLinks(node.id, node.lang, 0); // 0 parses all outgoing links
+        setExploredLinksMap((prev) => ({
+          ...prev,
+          [node.id]: allTitles,
+        }));
+      }
 
-      if (fetchedTitles.length === 0) {
+      if (allTitles.length === 0) {
         // Mark as dead end
         setNodes((prevNodes) =>
           prevNodes.map((n) =>
@@ -134,6 +180,10 @@ export default function App() {
         triggerToast(`「${node.id}」是終端節點，沒有其他知識外連`, 'warning');
         return;
       }
+
+      // Slice the full sublinks using the current slider limit
+      const currentLimit = limit;
+      const fetchedTitles = currentLimit <= 0 ? allTitles : allTitles.slice(0, currentLimit);
 
       // 3. Prevent duplicate node items using circular registry
       setNodes((prevNodes) => {
@@ -161,6 +211,7 @@ export default function App() {
 
         // Auto select the newly explored parent node to center the pathway and display children
         setSelectedNode({ ...node, loaded: true, loading: false });
+        setDeepestActiveId(node.id);
 
         return [...updatedNodes, ...newNodesToAdd];
       });
@@ -206,10 +257,189 @@ export default function App() {
   };
 
   /**
+   * Adds a hidden sub-article directly to the canvas as a child of the selected node,
+   * selects it, and initiates exploration immediately.
+   */
+  const handleAddSubArticle = (title: string) => {
+    if (!selectedNode) return;
+
+    const newNode: WikiNode = {
+      id: title,
+      label: title,
+      loaded: false,
+      url: `https://${selectedNode.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
+      lang: selectedNode.lang,
+      depth: (selectedNode.depth ?? 0) + 1,
+    };
+
+    const newLink: WikiLink = {
+      source: selectedNode.id,
+      target: title,
+    };
+
+    setNodes((prevNodes) => {
+      if (prevNodes.some(n => n.id === title)) return prevNodes;
+      return [...prevNodes, newNode];
+    });
+
+    setLinks((prevLinks) => {
+      const linkKey = `${selectedNode.id}->${title}`;
+      if (prevLinks.some(l => {
+        const src = typeof l.source === 'string' ? l.source : l.source.id;
+        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+        return `${src}->${tgt}` === linkKey;
+      })) {
+        return prevLinks;
+      }
+      return [...prevLinks, newLink];
+    });
+
+    // Select the new node and explore it
+    setSelectedNode(newNode);
+    setDeepestActiveId(newNode.id);
+    setIsSidebarOpen(true);
+
+    triggerToast(`已成功將隱藏條目「${title}」加入白板並展開！`, 'success');
+
+    // Auto explore the newly spawned child
+    setTimeout(() => {
+      handleExplore(newNode);
+    }, 150);
+  };
+
+  /**
+   * Manually re-searches a node, clearing its caches and forcing D3 to rebuild its links.
+   * Perfect for correcting empty branches or search errors.
+   */
+  const handleReSearch = async (node: WikiNode) => {
+    // 1. Evict cache for this node
+    setExploredLinksMap((prev) => {
+      const updated = { ...prev };
+      delete updated[node.id];
+      return updated;
+    });
+
+    // 2. Set node state to loading, resetting loaded/isDeadEnd status
+    setNodes((prevNodes) =>
+      prevNodes.map((n) =>
+        n.id === node.id ? { ...n, loaded: false, isDeadEnd: false, loading: true } : n
+      )
+    );
+    setSelectedNode((prev) =>
+      prev && prev.id === node.id ? { ...prev, loaded: false, isDeadEnd: false, loading: true } : prev
+    );
+
+    // 3. Clear any existing connections where this node is the SOURCE
+    // to allow a fresh start for outgoing connections from this node.
+    setLinks((prevLinks) =>
+      prevLinks.filter((l) => {
+        const src = typeof l.source === 'string' ? l.source : l.source.id;
+        return src !== node.id;
+      })
+    );
+
+    try {
+      // 4. Fetch outgoing links freshly
+      const allTitles = await fetchWikiLinks(node.id, node.lang, 0); // 0 parses all outgoing links
+      
+      setExploredLinksMap((prev) => ({
+        ...prev,
+        [node.id]: allTitles,
+      }));
+
+      if (allTitles.length === 0) {
+        // Mark as dead end if still empty
+        setNodes((prevNodes) =>
+          prevNodes.map((n) =>
+            n.id === node.id ? { ...n, loaded: true, loading: false, isDeadEnd: true } : n
+          )
+        );
+        setSelectedNode((prev) =>
+          prev && prev.id === node.id ? { ...prev, loaded: true, loading: false, isDeadEnd: true } : prev
+        );
+        triggerToast(`重新搜尋完成，「${node.id}」依然是終端節點`, 'warning');
+        return;
+      }
+
+      // Slice based on the current slider limit
+      const currentLimit = limit;
+      const fetchedTitles = currentLimit <= 0 ? allTitles : allTitles.slice(0, currentLimit);
+
+      // 5. Add new nodes dynamically
+      setNodes((prevNodes) => {
+        const existingNodeIds = new Set(prevNodes.map((n) => n.id));
+        const newNodesToAdd: WikiNode[] = [];
+
+        fetchedTitles.forEach((title) => {
+          if (!existingNodeIds.has(title)) {
+            newNodesToAdd.push({
+              id: title,
+              label: title,
+              loaded: false,
+              url: `https://${node.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
+              lang: node.lang,
+              depth: (node.depth ?? 0) + 1,
+            });
+            existingNodeIds.add(title);
+          }
+        });
+
+        const updatedNodes = prevNodes.map((n) =>
+          n.id === node.id ? { ...n, loaded: true, loading: false } : n
+        );
+
+        setSelectedNode({ ...node, loaded: true, loading: false });
+        setDeepestActiveId(node.id);
+
+        return [...updatedNodes, ...newNodesToAdd];
+      });
+
+      // 6. Connect new links
+      setLinks((prevLinks) => {
+        const existingLinkKeys = new Set(
+          prevLinks.map((l) => {
+            const src = typeof l.source === 'string' ? l.source : l.source.id;
+            const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+            return `${src}->${tgt}`;
+          })
+        );
+
+        const newLinksToAdd: WikiLink[] = [];
+        fetchedTitles.forEach((title) => {
+          const key = `${node.id}->${title}`;
+          if (!existingLinkKeys.has(key)) {
+            newLinksToAdd.push({
+              source: node.id,
+              target: title,
+            });
+            existingLinkKeys.add(key);
+          }
+        });
+
+        return [...prevLinks, ...newLinksToAdd];
+      });
+
+      triggerToast(`「${node.id}」重新搜尋完成！已成功抓取並解析 ${fetchedTitles.length} 個外連超連結。`, 'success');
+
+    } catch (error) {
+      console.error(error);
+      triggerToast('重新搜尋失敗，請檢查網路連線', 'error');
+      // Revert loading state
+      setNodes((prevNodes) =>
+        prevNodes.map((n) => (n.id === node.id ? { ...n, loading: false } : n))
+      );
+      setSelectedNode((prev) =>
+        prev && prev.id === node.id ? { ...prev, loading: false } : prev
+      );
+    }
+  };
+
+  /**
    * Sets a specific node as the fresh root Exploration center, wiping other branches.
    */
   const handleSetRoot = async (node: WikiNode) => {
     setSelectedNode(null);
+    setIsSidebarOpen(true);
     setContextMenu(null);
     
     // Smooth transition
@@ -227,6 +457,8 @@ export default function App() {
     setNodes([nextRoot]);
     setLinks([]);
     setSelectedNode(nextRoot);
+    setDeepestActiveId(node.id);
+    setClickHistory([nextRoot]);
     setResetZoomTrigger((prev) => prev + 1);
 
     // Auto trigger expand on the new root
@@ -242,6 +474,7 @@ export default function App() {
     setContextMenu(null);
     if (selectedNode?.id === node.id) {
       setSelectedNode(null);
+      setIsSidebarOpen(false);
     }
 
     setNodes((prevNodes) => prevNodes.filter((n) => n.id !== node.id));
@@ -275,9 +508,79 @@ export default function App() {
     setNodes([]);
     setLinks([]);
     setSelectedNode(null);
+    setIsSidebarOpen(false);
     setContextMenu(null);
+    setClickHistory([]);
     triggerToast('白板畫布已全面清空。您可以輸入全新主題開始探索！', 'info');
   };
+
+  // 5. Watch for branch limit changes to dynamically update visible sublinks instantly!
+  useEffect(() => {
+    if (!selectedNode || !selectedNode.loaded) return;
+    const allChildren = exploredLinksMap[selectedNode.id];
+    if (!allChildren) return;
+
+    const currentLimit = limit;
+    const targetChildren = currentLimit <= 0 ? allChildren : allChildren.slice(0, currentLimit);
+    const targetChildrenSet = new Set(targetChildren);
+    const allChildrenSet = new Set(allChildren);
+
+    setNodes((prevNodes) => {
+      // Keep nodes that are either NOT children of selectedNode OR are in the targetChildren slice
+      const otherNodes = prevNodes.filter((n) => {
+        return !allChildrenSet.has(n.id) || targetChildrenSet.has(n.id);
+      });
+
+      // Find which targetChildren are missing
+      const existingNodeIds = new Set(otherNodes.map((n) => n.id));
+      const newNodesToAdd: WikiNode[] = [];
+      targetChildren.forEach((title) => {
+        if (!existingNodeIds.has(title)) {
+          newNodesToAdd.push({
+            id: title,
+            label: title,
+            loaded: false,
+            url: `https://${selectedNode.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
+            lang: selectedNode.lang,
+            depth: (selectedNode.depth ?? 0) + 1,
+          });
+        }
+      });
+
+      return [...otherNodes, ...newNodesToAdd];
+    });
+
+    setLinks((prevLinks) => {
+      // Keep links that are NOT outgoing from selectedNode OR target is in targetChildrenSet
+      const otherLinks = prevLinks.filter((l) => {
+        const src = typeof l.source === 'string' ? l.source : l.source.id;
+        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+        return src !== selectedNode.id || targetChildrenSet.has(tgt);
+      });
+
+      // Find missing links
+      const existingLinkKeys = new Set(
+        otherLinks.map((l) => {
+          const src = typeof l.source === 'string' ? l.source : l.source.id;
+          const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+          return `${src}->${tgt}`;
+        })
+      );
+
+      const newLinksToAdd: WikiLink[] = [];
+      targetChildren.forEach((title) => {
+        const key = `${selectedNode.id}->${title}`;
+        if (!existingLinkKeys.has(key)) {
+          newLinksToAdd.push({
+            source: selectedNode.id,
+            target: title,
+          });
+        }
+      });
+
+      return [...otherLinks, ...newLinksToAdd];
+    });
+  }, [limit, selectedNode?.id]);
 
   // Coordinate coordinator that releases locks and toggles modes
   const handleLayoutModeChange = (mode: 'hierarchical' | 'radial') => {
@@ -309,7 +612,8 @@ export default function App() {
   const getActivePathSet = (): Set<string> => {
     const activeSet = new Set<string>();
     
-    let currentId = selectedNode?.id;
+    // Use state-based deepestActiveId to keep path history intact!
+    let currentId = deepestActiveId || selectedNode?.id;
     if (!currentId && nodes.length > 0) {
       const root = nodes.find(n => n.isRoot || n.depth === 0) || nodes[0];
       currentId = root.id;
@@ -318,7 +622,8 @@ export default function App() {
     if (!currentId) return activeSet;
 
     let tempId: string | null = currentId;
-    while (tempId) {
+    let iterations = 0;
+    while (tempId && iterations < 100) {
       activeSet.add(tempId);
       
       const parentLink = links.find(l => {
@@ -332,13 +637,14 @@ export default function App() {
       } else {
         tempId = null;
       }
+      iterations++;
     }
 
     return activeSet;
   };
 
   const activePathSet = getActivePathSet();
-  const deepestActiveId = selectedNode?.id || (nodes.find(n => n.isRoot || n.depth === 0) || nodes[0])?.id;
+  const currentDeepestActiveId = deepestActiveId || selectedNode?.id || (nodes.find(n => n.isRoot || n.depth === 0) || nodes[0])?.id;
 
   // Filter visible nodes to implement the Focused Pathway Mode
   const visibleNodes = nodes.filter(node => {
@@ -350,7 +656,7 @@ export default function App() {
     });
     if (parentLink) {
       const src = typeof parentLink.source === 'string' ? parentLink.source : parentLink.source.id;
-      if (src === deepestActiveId) return true;
+      if (src === currentDeepestActiveId) return true;
     }
 
     return false;
@@ -382,44 +688,39 @@ export default function App() {
           nodes={visibleNodes}
           links={visibleLinks}
           layoutMode={layoutMode}
-          onNodeClick={(node) => {
-            setSelectedNode(node);
-            setContextMenu(null);
-            if (!node.loaded && !node.loading && !node.isDeadEnd) {
-              handleExplore(node);
-            }
+          onNodeClick={handleNodeClick}
+          onBackgroundClick={() => {
+            setSelectedNode(null);
+            setDeepestActiveId(null);
+            setIsSidebarOpen(false);
           }}
           onNodeRightClick={handleNodeRightClick}
           onMarkDeadEnd={handleMarkDeadEnd}
           selectedNode={selectedNode}
           resetZoomTrigger={resetZoomTrigger}
+          focusSelectedTrigger={focusSelectedTrigger}
+          fitScreenTrigger={fitScreenTrigger}
+          focusRootTrigger={focusRootTrigger}
         />
       ) : (
-        /* Empty canvas placeholder design */
-        <div className="w-full h-full bg-grid-whiteboard flex flex-col justify-center items-center px-6">
-          <div className="p-8 bg-white/70 backdrop-blur-md rounded-2xl border border-slate-200/50 shadow-lg text-center max-w-md animate-in zoom-in-95 duration-300">
-            <Compass className="w-12 h-12 text-indigo-500 mx-auto mb-4 animate-spin-slow" />
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Wiki 知識網絡圖譜</h3>
-            <p className="text-slate-500 text-sm leading-relaxed mb-6">
-              您的白板目前是空的。請在上方搜尋列中貼上維基百科網址，或輸入一個想要探索的知識主題！
-            </p>
-            <div className="flex gap-2 justify-center">
-              <button
-                onClick={() => handleSearch('宇宙', 'zh')}
-                className="text-xs font-semibold px-3 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100/50 rounded-xl transition-all cursor-pointer"
-              >
-                探索「宇宙」🚀
-              </button>
-              <button
-                onClick={() => handleSearch('人工智能', 'zh')}
-                className="text-xs font-semibold px-3 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100/50 rounded-xl transition-all cursor-pointer"
-              >
-                探索「人工智能」🧠
-              </button>
-            </div>
-          </div>
-        </div>
+        /* Empty canvas whiteboard background */
+        <div className="w-full h-full bg-grid-whiteboard relative overflow-hidden bg-slate-50" />
       )}
+
+      {/* Exploration Time Machine History Panel (Top Left Corner) */}
+      <HistoryPanel
+        history={clickHistory}
+        selectedNode={selectedNode}
+        onNodeClick={handleNodeClick}
+      />
+
+      {/* Search & Dropdown Filter Panel for nodes with >50 sub-articles */}
+      <SubArticlesPanel
+        selectedNode={selectedNode}
+        allSubArticles={selectedNode ? (exploredLinksMap[selectedNode.id] || []) : []}
+        visibleNodeIds={new Set(nodes.map(n => n.id))}
+        onAddSubArticle={handleAddSubArticle}
+      />
 
       {/* 2. Floating Dashboard Search & Controls Layer */}
       <ControlPanel
@@ -431,17 +732,20 @@ export default function App() {
         limit={limit}
         onLimitChange={setLimit}
         searchLoading={searchLoading}
+        hasNodes={nodes.length > 0}
       />
 
       {/* 3. Sliding Detail Reader Panel */}
       <DetailSidebar
         node={selectedNode}
-        onClose={() => setSelectedNode(null)}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
         onExplore={handleExplore}
         onSetRoot={handleSetRoot}
         onRemove={handleRemoveNode}
         onMarkDeadEnd={handleMarkDeadEnd}
         connectedLinksCount={selectedNode ? getConnectedLinksCount(selectedNode.id) : 0}
+        onReSearch={handleReSearch}
       />
 
       {/* 4. Customized Right-Click Operations overlay */}
@@ -457,35 +761,80 @@ export default function App() {
         />
       )}
 
-      {/* 5. Floating Layout Selector at the bottom-left corner */}
+      {/* 5. Floating Layout & Camera Selector at the bottom-left corner */}
       {nodes.length > 0 && (
-        <div className="fixed bottom-4 left-4 z-30 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-1.5 flex gap-1 pointer-events-auto transition-all hover:shadow-xl duration-300">
-          <button
-            type="button"
-            onClick={() => handleLayoutModeChange('hierarchical')}
-            className={`flex items-center gap-1.5 py-2 px-3.5 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer ${
-              layoutMode === 'hierarchical'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10 font-bold'
-                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
-            }`}
-            title="直線階層排列"
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>階層排列</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleLayoutModeChange('radial')}
-            className={`flex items-center gap-1.5 py-2 px-3.5 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer ${
-              layoutMode === 'radial'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10 font-bold'
-                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
-            }`}
-            title="放射網絡排列"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-            <span>放射排列</span>
-          </button>
+        <div className="fixed bottom-4 left-4 z-30 bg-white/80 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-2 flex flex-col gap-2 pointer-events-auto transition-all hover:shadow-xl duration-300 max-w-xs">
+          
+          {/* Layout Actions Row */}
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => handleLayoutModeChange('hierarchical')}
+              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
+                layoutMode === 'hierarchical'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+              }`}
+              title="直線階層排列"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>階層排列</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLayoutModeChange('radial')}
+              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
+                layoutMode === 'radial'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+              }`}
+              title="放射網絡排列"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>放射排列</span>
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-slate-100 w-full" />
+
+          {/* Camera Positioning Row */}
+          <div className="flex justify-between gap-1 items-center px-1">
+            <span className="text-[10px] font-bold text-slate-400 select-none mr-2 shrink-0">相機鏡頭:</span>
+            <div className="flex gap-1.5">
+              {/* Focus Selected */}
+              <button
+                type="button"
+                onClick={() => setFocusSelectedTrigger(prev => prev + 1)}
+                disabled={!selectedNode}
+                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 rounded-lg transition-all active:scale-95 cursor-pointer border border-slate-100/10"
+                title={selectedNode ? `鏡頭聚焦選中節點：「${selectedNode.id}」` : "請先選擇畫布上的任何節點來進行鏡頭聚焦"}
+              >
+                <Compass className="w-4 h-4" />
+              </button>
+
+              {/* Fit Screen */}
+              <button
+                type="button"
+                onClick={() => setFitScreenTrigger(prev => prev + 1)}
+                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all active:scale-95 cursor-pointer border border-slate-100/10"
+                title="相機全局適應 (將整顆樹縮小塞滿視窗並置中)"
+              >
+                <Share2 className="w-4 h-4 rotate-90" />
+              </button>
+
+              {/* Focus Root */}
+              <button
+                type="button"
+                onClick={() => setFocusRootTrigger(prev => prev + 1)}
+                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all active:scale-95 cursor-pointer border border-slate-100/10"
+                title="定位聚焦到最初搜尋的根節點 (Root)"
+              >
+                <Layers className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
         </div>
       )}
 

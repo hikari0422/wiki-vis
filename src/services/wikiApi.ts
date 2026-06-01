@@ -153,13 +153,30 @@ export async function fetchWikiLinks(title: string, lang: string, limit: number 
       }
     }
 
-    // Now, select all anchor tags (a) with href starting with "/wiki/"
-    const anchors = container.querySelectorAll('a[href^="/wiki/"]');
+    // Now, select all anchor tags (a) to capture all localized variant URLs (like /zh-tw/, /zh-hans/, etc.)
+    const anchors = container.querySelectorAll('a');
     const linkTitles: string[] = [];
     const seen = new Set<string>();
 
+    const wikiHrefRegex = /^(?:https?:\/\/[a-z-]+\.wikipedia\.org)?\/(wiki|zh|zh-[a-z]+)\/([^?#]+)/i;
+
     anchors.forEach((a) => {
-      const linkTitle = a.getAttribute('title');
+      const href = a.getAttribute('href');
+      if (!href) return;
+
+      const hrefMatch = href.match(wikiHrefRegex);
+      if (!hrefMatch) return; // Skip non-Wikipedia article links
+
+      // Attempt to extract title from the title attribute, otherwise fallback to URL decoding
+      let linkTitle = a.getAttribute('title');
+      if (!linkTitle) {
+        try {
+          linkTitle = decodeURIComponent(hrefMatch[2]).replace(/_/g, ' ');
+        } catch (e) {
+          return; // Skip if URL decoding fails
+        }
+      }
+
       if (!linkTitle) return;
 
       const cleanT = linkTitle.trim();
@@ -185,6 +202,9 @@ export async function fetchWikiLinks(title: string, lang: string, limit: number 
 
     // Shuffle and pick up to 'limit' elements for canvas distribution diversity
     const shuffled = [...linkTitles].sort(() => 0.5 - Math.random());
+    if (limit <= 0) {
+      return shuffled;
+    }
     return shuffled.slice(0, limit);
   } catch (error) {
     console.error('Error in fetchWikiLinks:', error);

@@ -1,30 +1,58 @@
 import React, { useEffect, useState } from 'react';
-import { X, ExternalLink, Target, Trash2, Network, Loader2, BookOpen } from 'lucide-react';
+import { X, ExternalLink, Target, Trash2, Network, Loader2, BookOpen, RotateCw } from 'lucide-react';
 import type { WikiNode } from '../types/wiki';
 import { fetchWikiSummary } from '../services/wikiApi';
 
 interface DetailSidebarProps {
   node: WikiNode | null;
+  isOpen: boolean;
   onClose: () => void;
   onExplore: (node: WikiNode) => void;
   onSetRoot: (node: WikiNode) => void;
   onRemove: (node: WikiNode) => void;
   onMarkDeadEnd: (nodeId: string) => void; // Flag non-existent nodes
   connectedLinksCount: number;
+  onReSearch: (node: WikiNode) => void; // Added for manual re-search/retry
 }
 
 export const DetailSidebar: React.FC<DetailSidebarProps> = ({
   node,
+  isOpen,
   onClose,
   onExplore,
   onSetRoot,
   onRemove,
   onMarkDeadEnd,
   connectedLinksCount,
+  onReSearch,
 }) => {
   const [summary, setSummary] = useState<string>('');
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(false);
+
+  const handleReSearchClick = async () => {
+    if (!node) return;
+    
+    // 1. Trigger parent re-search to fetch and sync links
+    onReSearch(node);
+    
+    // 2. Trigger local reload to refresh summary and thumbnail
+    setLoading(true);
+    try {
+      const data = await fetchWikiSummary(node.id, node.lang);
+      setSummary(data.extract);
+      setThumbnail(data.thumbnail);
+      if (data.isNotFound) {
+        onMarkDeadEnd(node.id);
+      }
+    } catch (error) {
+      console.error('Failed to load page summary:', error);
+      setSummary('無法加載此維基條目的摘要內容。');
+      setThumbnail(undefined);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Fetch summary and image whenever the active node selection changes
   useEffect(() => {
@@ -56,7 +84,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
   return (
     <div
       className={`fixed top-0 right-0 h-full w-80 md:w-96 bg-white/80 backdrop-blur-xl border-l border-slate-200/50 shadow-2xl z-40 transition-transform duration-300 ease-out transform ${
-        node ? 'translate-x-0' : 'translate-x-full'
+        isOpen ? 'translate-x-0' : 'translate-x-full'
       }`}
     >
       {/* Sidebar Container */}
@@ -146,6 +174,17 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
               展開此節點網絡
             </button>
           )}
+
+          {/* Action: Force Re-search / Refresh */}
+          <button
+            onClick={handleReSearchClick}
+            disabled={node.loading}
+            className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm border border-indigo-200/50 transition-all active:scale-[0.98]"
+            title="手動重新自維基百科搜尋此條目，並強制重新解析其內文的所有知識超連結與引言摘要"
+          >
+            <RotateCw className={`w-4 h-4 ${node.loading ? 'animate-spin' : ''}`} />
+            重新搜尋此節點
+          </button>
 
           {/* Action: Set as New Root */}
           <button

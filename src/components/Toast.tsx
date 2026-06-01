@@ -18,10 +18,10 @@ export const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
   useEffect(() => {
     if (!toast) return;
 
-    // Auto close after 4 seconds
+    // Auto close after 2 seconds
     const timer = setTimeout(() => {
       onClose();
-    }, 4000);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [toast, onClose]);

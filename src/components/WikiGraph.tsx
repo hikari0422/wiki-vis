@@ -12,6 +12,10 @@ interface WikiGraphProps {
   onMarkDeadEnd: (nodeId: string) => void; // Flag non-existent nodes
   selectedNode: WikiNode | null;
   resetZoomTrigger: number;
+  onBackgroundClick?: () => void;
+  focusSelectedTrigger: number;
+  fitScreenTrigger: number;
+  focusRootTrigger: number;
 }
 
 export const WikiGraph: React.FC<WikiGraphProps> = ({
@@ -23,6 +27,10 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
   onMarkDeadEnd,
   selectedNode,
   resetZoomTrigger,
+  onBackgroundClick,
+  focusSelectedTrigger,
+  fitScreenTrigger,
+  focusRootTrigger,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -142,6 +150,139 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       .call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(0.8));
   }, [resetZoomTrigger]);
 
+  // 2b. Zoom and Focus on Selected Node after exploration or selection
+  useEffect(() => {
+    if (!selectedNode || !selectedNode.loaded || selectedNode.loading) return;
+    if (!svgRef.current || !containerRef.current || !zoomBehaviorRef.current) return;
+
+    // Find the latest simulated coordinates from the active nodes array
+    const activeNode = nodes.find(n => n.id === selectedNode.id);
+    if (!activeNode || activeNode.x === undefined || activeNode.y === undefined) return;
+
+    const svg = d3.select<SVGSVGElement, unknown>(svgRef.current);
+    const container = containerRef.current;
+    const zoom = zoomBehaviorRef.current;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    const targetScale = 1.15; // Slightly zoomed in for detail focus
+
+    svg.transition()
+      .duration(800)
+      .ease(d3.easeCubicInOut)
+      .call(
+        zoom.transform,
+        d3.zoomIdentity
+          .translate(width / 2 - activeNode.x * targetScale, height / 2 - activeNode.y * targetScale)
+          .scale(targetScale)
+      );
+  }, [selectedNode?.id, selectedNode?.loaded]);
+
+  // 2c. Camera Control Action: Focus on Selected Node
+  useEffect(() => {
+    if (focusSelectedTrigger === 0 || !selectedNode) return;
+    if (!svgRef.current || !containerRef.current || !zoomBehaviorRef.current) return;
+
+    const activeNode = nodes.find(n => n.id === selectedNode.id);
+    if (!activeNode || activeNode.x === undefined || activeNode.y === undefined) return;
+
+    const svg = d3.select<SVGSVGElement, unknown>(svgRef.current);
+    const container = containerRef.current;
+    const zoom = zoomBehaviorRef.current;
+
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    const targetScale = 1.25; // Slightly zoomed in for detail focus
+
+    svg.transition()
+      .duration(750)
+      .ease(d3.easeCubicInOut)
+      .call(
+        zoom.transform,
+        d3.zoomIdentity
+          .translate(w / 2 - activeNode.x * targetScale, h / 2 - activeNode.y * targetScale)
+          .scale(targetScale)
+      );
+  }, [focusSelectedTrigger]);
+
+  // 2d. Camera Control Action: Focus on Root Node
+  useEffect(() => {
+    if (focusRootTrigger === 0) return;
+    if (!svgRef.current || !containerRef.current || !zoomBehaviorRef.current) return;
+
+    const rootNode = nodes.find(n => n.isRoot || n.depth === 0) || nodes[0];
+    if (!rootNode || rootNode.x === undefined || rootNode.y === undefined) return;
+
+    const svg = d3.select<SVGSVGElement, unknown>(svgRef.current);
+    const container = containerRef.current;
+    const zoom = zoomBehaviorRef.current;
+
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    const targetScale = 1.0; // Standard root focus scale
+
+    svg.transition()
+      .duration(750)
+      .ease(d3.easeCubicInOut)
+      .call(
+        zoom.transform,
+        d3.zoomIdentity
+          .translate(w / 2 - rootNode.x * targetScale, h / 2 - rootNode.y * targetScale)
+          .scale(targetScale)
+      );
+  }, [focusRootTrigger]);
+
+  // 2e. Camera Control Action: Fit Whole Tree in Viewport
+  useEffect(() => {
+    if (fitScreenTrigger === 0 || nodes.length === 0) return;
+    if (!svgRef.current || !containerRef.current || !zoomBehaviorRef.current) return;
+
+    const svg = d3.select<SVGSVGElement, unknown>(svgRef.current);
+    const container = containerRef.current;
+    const zoom = zoomBehaviorRef.current;
+
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+
+    // Calculate bounding box of all nodes
+    let xMin = Infinity, xMax = -Infinity;
+    let yMin = Infinity, yMax = -Infinity;
+
+    nodes.forEach(n => {
+      const rx = getNodeRadiusX(n);
+      const ryVal = getNodeRadiusY(n);
+      if (n.x !== undefined && n.y !== undefined) {
+        xMin = Math.min(xMin, n.x - rx);
+        xMax = Math.max(xMax, n.x + rx);
+        yMin = Math.min(yMin, n.y - ryVal);
+        yMax = Math.max(yMax, n.y + ryVal);
+      }
+    });
+
+    if (xMin === Infinity) return;
+
+    const graphW = xMax - xMin;
+    const graphH = yMax - yMin;
+    const graphCX = (xMin + xMax) / 2;
+    const graphCY = (yMin + yMax) / 2;
+
+    const padding = 80;
+    const scaleX = w / (graphW + padding);
+    const scaleY = h / (graphH + padding);
+    const targetScale = Math.max(0.15, Math.min(1.5, Math.min(scaleX, scaleY) * 0.95));
+
+    svg.transition()
+      .duration(850)
+      .ease(d3.easeCubicInOut)
+      .call(
+        zoom.transform,
+        d3.zoomIdentity
+          .translate(w / 2 - graphCX * targetScale, h / 2 - graphCY * targetScale)
+          .scale(targetScale)
+      );
+  }, [fitScreenTrigger]);
+
   // 3. D3 Physics Simulation Engine & DOM Sync
   useEffect(() => {
     const svg = svgRef.current;
@@ -160,6 +301,12 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       target: typeof l.target === 'string' ? l.target : l.target.id,
     }));
 
+    // Unfreeze all nodes to allow the simulation to settle them cleanly without overlaps!
+    nodes.forEach((node) => {
+      node.fx = null;
+      node.fy = null;
+    });
+
     // Set up or update Simulation
     // Hierarchical top-down spacing forces (spreads left & right in distinct vertical rows)
     const simulation = d3.forceSimulation<WikiNode, WikiLink>(nodes)
@@ -169,17 +316,17 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
         .strength(0.7)
       )
       .force('charge', d3.forceManyBody().strength(layoutMode === 'hierarchical' ? -400 : -250).distanceMax(500))
-      .force('collide', d3.forceCollide().radius(50).iterations(2)); // Keep nodes separated
+      .force('collide', d3.forceCollide<WikiNode>().radius((d) => getNodeRadiusX(d) + 16).iterations(2)); // Keep nodes separated
 
     if (layoutMode === 'hierarchical') {
       simulation
         .force('y', d3.forceY<WikiNode>().y((d) => (d.depth ?? 0) * 160).strength(0.95)) // Strictly align in vertical rows
         .force('x', d3.forceX<WikiNode>().x(0).strength(0.06)); // Center horizontally
     } else {
+      // Concentric radial circles based on depth
       simulation
-        .force('center', d3.forceCenter(0, 0).strength(0.03))
-        .force('x', d3.forceX<WikiNode>().x(0).strength(0.03))
-        .force('y', d3.forceY<WikiNode>().y(0).strength(0.03));
+        .force('radial', d3.forceRadial<WikiNode>((d) => (d.depth ?? 0) * 220, 0, 0).strength(0.85))
+        .force('center', d3.forceCenter(0, 0).strength(0.05));
     }
 
     simulationRef.current = simulation;
@@ -205,7 +352,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
         });
 
         // Rigid fixed horizontal spacing between nodes in the same row
-        const horizontalSpacing = 135;
+        const horizontalSpacing = 190;
 
         // Enforce absolute vertical tracks and equal horizontal intervals
         Object.keys(nodesByDepth).forEach((depthKey) => {
@@ -233,16 +380,53 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       linkElements.attr('d', (d) => {
         const source = d.source as unknown as WikiNode;
         const target = d.target as unknown as WikiNode;
+        
+        // Safety checks to ensure source and target are fully resolved objects
+        if (!source || !target || typeof source === 'string' || typeof target === 'string') {
+          return '';
+        }
+        
         const px = source.x ?? 0;
         const py = source.y ?? 0;
         const cx = target.x ?? 0;
         const cy = target.y ?? 0;
+
+        const sourceRx = getNodeRadiusX(source);
+        const sourceRy = getNodeRadiusY(source);
+        const targetRx = getNodeRadiusX(target);
+        const targetRy = getNodeRadiusY(target);
         
         if (layoutMode === 'hierarchical') {
           const midY = (py + cy) / 2;
-          return `M ${px} ${py} L ${px} ${midY} L ${cx} ${midY} L ${cx} ${cy}`;
+          const arrowCompensation = 7; // Shorten line by 7px so arrow is fully visible
+          const targetYOffset = cy > midY ? -(targetRy + arrowCompensation) : (targetRy + arrowCompensation);
+          return `M ${px} ${py} L ${px} ${midY} L ${cx} ${midY} L ${cx} ${cy + targetYOffset}`;
         } else {
-          return `M ${px} ${py} L ${cx} ${cy}`;
+          const dx = px - cx;
+          const dy = py - cy;
+          const dist = Math.hypot(dx, dy);
+          if (dist === 0) {
+            return `M ${px} ${py} L ${cx} ${cy}`;
+          }
+          // Ellipse intersection factor t
+          const t = 1 / Math.sqrt((dx * dx) / (targetRx * targetRx) + (dy * dy) / (targetRy * targetRy));
+          
+          // Source ellipse intersection factor tSource
+          const tSource = 1 / Math.sqrt((dx * dx) / (sourceRx * sourceRx) + (dy * dy) / (sourceRy * sourceRy));
+          
+          // Apply line shortening compensation at both ends so the arrow marker is visible and does not overlap
+          const arrowCompensation = 7; // Shift end point 7px back towards source
+          const startCompensation = 2; // Shift start point 2px forward towards target
+          
+          const tOffset = arrowCompensation / dist;
+          const tSourceOffset = startCompensation / dist;
+          
+          const startX = px - Math.max(0, tSource - tSourceOffset) * dx;
+          const startY = py - Math.max(0, tSource - tSourceOffset) * dy;
+          const endX = cx + (t + tOffset) * dx;
+          const endY = cy + (t + tOffset) * dy;
+          
+          return `M ${startX} ${startY} L ${endX} ${endY}`;
         }
       });
 
@@ -264,6 +448,13 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       d3.drag<SVGGElement, WikiNode>()
         .on('start', (event, d) => {
           if (!event.active) simulation.alphaTarget(0.2).restart();
+          // Unfreeze all other nodes so they can dynamically slide and avoid overlaps during dragging!
+          nodes.forEach((node) => {
+            if (node.id !== d.id) {
+              node.fx = null;
+              node.fy = null;
+            }
+          });
           d.fx = d.x;
           d.fy = layoutMode === 'hierarchical' ? (d.depth ?? 0) * 160 : d.y; // Slide horizontally in hierarchical, drag freely in radial
         })
@@ -286,9 +477,54 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     };
   }, [nodes, links, layoutMode]);
 
-  // Truncates labels that exceed 6 characters and adds ellipsis
-  const formatLabel = (label: string): string => {
-    return label.length > 7 ? `${label.slice(0, 6)}...` : label;
+  // Truncates labels that exceed 14 characters and adds ellipsis
+  const formatLabel = (label: string | undefined | null): string => {
+    if (!label) return '';
+    return label.length > 15 ? `${label.slice(0, 14)}...` : label;
+  };
+
+  // Simple deterministic hash of a string to a float in [0, 1)
+  const getDeterministicRandom = (str: string): number => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs((Math.sin(hash) * 10000) % 1);
+  };
+
+  // Dynamically query random vertical radius (ry) for a node
+  const getNodeRadiusY = (node: WikiNode | undefined | null): number => {
+    if (!node) return 34;
+    const rand = getDeterministicRandom(node.id);
+    // Randomize vertical radius between 26 and 42 deterministically
+    return Math.round(26 + rand * 16);
+  };
+
+  // Calculates the horizontal radius of the ellipse based on the formatted label length,
+  // giving extra weight to full-width characters (like Chinese) to ensure the text fits perfectly.
+  const getEllipseRadiusX = (label: string | undefined | null): number => {
+    if (!label) return 48;
+    const formatted = formatLabel(label);
+    let length = 0;
+    for (let i = 0; i < formatted.length; i++) {
+      const code = formatted.charCodeAt(i);
+      if (code > 127) {
+        length += 1.8; // Chinese characters have more width weight
+      } else {
+        length += 1.0;
+      }
+    }
+    return Math.max(48, length * 5.5 + 18);
+  };
+
+  // Dynamically query random horizontal radius (rx) for a node
+  const getNodeRadiusX = (node: WikiNode | undefined | null): number => {
+    if (!node) return 48;
+    const baseRx = getEllipseRadiusX(node.label);
+    const rand = getDeterministicRandom(node.id);
+    // Random scale between 0.85 and 1.25 deterministically
+    const randomScale = 0.85 + rand * 0.40;
+    return Math.round(baseRx * randomScale);
   };
 
   // Helper to determine node visual classes
@@ -326,6 +562,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       <svg
         ref={svgRef}
         className="w-full h-full block focus:outline-none"
+        onClick={() => onBackgroundClick?.()}
         onContextMenu={(e) => e.preventDefault()} // Block browser default context menu
       >
         {/* SVG Defs for Grid Pattern and Arrow Markers */}
@@ -334,7 +571,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
           <marker
             id="arrow-marker"
             viewBox="0 0 10 10"
-            refX="48" // Node radius is 36, refX=48 places arrow head perfectly on circle perimeter
+            refX="9.5"
             refY="5"
             markerWidth="6"
             markerHeight="6"
@@ -346,7 +583,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
           <marker
             id="arrow-marker-selected"
             viewBox="0 0 10 10"
-            refX="48"
+            refX="9.5"
             refY="5"
             markerWidth="6"
             markerHeight="6"
@@ -413,21 +650,30 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                 >
                   {/* Subtle shadow glow for root or active nodes */}
                   {node.isRoot && (
-                    <circle
-                      r="44"
+                    <ellipse
+                      cx="0"
+                      cy="0"
+                      rx={getNodeRadiusX(node) + 8}
+                      ry={getNodeRadiusY(node) + 8}
                       className="fill-transparent stroke-indigo-100 stroke-[4px] animate-pulse pointer-events-none opacity-60"
                     />
                   )}
                   {isSelected && !node.isRoot && (
-                    <circle
-                      r="42"
+                    <ellipse
+                      cx="0"
+                      cy="0"
+                      rx={getNodeRadiusX(node) + 6}
+                      ry={getNodeRadiusY(node) + 6}
                       className="fill-transparent stroke-sky-100 stroke-[4px] pointer-events-none opacity-85 animate-pulse"
                     />
                   )}
 
-                  {/* Core Node Circle */}
-                  <circle
-                    r="36"
+                  {/* Core Node Ellipse */}
+                  <ellipse
+                    cx="0"
+                    cy="0"
+                    rx={getNodeRadiusX(node)}
+                    ry={getNodeRadiusY(node)}
                     className={getNodeClasses(node)}
                     style={{ transition: 'fill 0.2s, stroke 0.2s, stroke-width 0.2s' }}
                   />
@@ -444,7 +690,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                   <text
                     textAnchor="middle"
                     dy=".3em"
-                    className={`text-[11px] font-semibold pointer-events-none select-none tracking-tight ${
+                    className={`text-[13px] font-bold pointer-events-none select-none tracking-tight ${
                       node.isDeadEnd 
                         ? 'fill-slate-400' 
                         : isSelected 
