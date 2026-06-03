@@ -80,10 +80,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="text-center w-full mb-1 animate-in fade-in slide-in-from-top-4 duration-500 flex flex-col items-center">
             <Compass className="w-14 h-14 text-indigo-600 mb-3.5 animate-spin-slow" />
             <h1 className="text-3xl font-extrabold bg-gradient-to-r from-indigo-800 via-indigo-600 to-indigo-500 bg-clip-text text-transparent tracking-tight mb-2">
-              Wiki 知識網絡圖譜
+            Wiki Vision
             </h1>
             <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-              探索維基百科條目之間的隱形關聯，繪製出專屬您的立體知識大腦！
+              探索wiki條目之間的關係
             </p>
           </div>
         )}
