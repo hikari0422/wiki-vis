@@ -36,7 +36,7 @@ export function cleanTitle(title: string): string {
  * Handles subdomains like "zh.wikipedia.org", "en.wikipedia.org", etc.,
  * and supports localization paths like "/wiki/", "/zh-tw/", "/zh-cn/", "/zh-hant/", "/zh-hans/", etc.
  */
-export function parseWikiInput(input: string, defaultLang: string = 'zh'): { title: string; lang: string; isUrl: boolean } {
+export function parseWikiInput(input: string, defaultLang: string = 'zh'): { title: string; lang: string; isUrl: boolean; variant?: string } {
   const trimmed = input.trim();
   
   // Wikipedia URL match regex
@@ -47,10 +47,13 @@ export function parseWikiInput(input: string, defaultLang: string = 'zh'): { tit
   if (match) {
     const lang = match[1].toLowerCase();
     const rawTitle = match[3];
+    const pathVariant = match[2].toLowerCase();
+    const variant = pathVariant.startsWith('zh-') ? pathVariant : undefined;
     return {
       title: cleanTitle(rawTitle),
       lang,
       isUrl: true,
+      variant,
     };
   }
 
@@ -88,22 +91,81 @@ export async function searchWikiTitle(query: string, lang: string): Promise<stri
 }
 
 /**
+ * Resolves the canonical title of a page by handling variant conversion and redirects.
+ */
+export async function resolveCanonicalTitle(title: string, lang: string): Promise<string> {
+  const url = `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
+    title
+  )}&redirects=1&converttitles=1&format=json&origin=*`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return title;
+    const data = await res.json();
+    const pages = data.query?.pages;
+    if (pages) {
+      const pageId = Object.keys(pages)[0];
+      if (pageId && pageId !== '-1') {
+        return pages[pageId].title || title;
+      }
+    }
+    return title;
+  } catch (error) {
+    console.error('Error resolving canonical title:', error);
+    return title;
+  }
+}
+
+/**
  * Fetches outgoing article links from a specific page.
  * Restricts links to main article namespace (ns: 0) to avoid templates, categories, etc.
  * Resolves redirects and converts titles automatically.
  */
-export async function fetchWikiLinks(title: string, lang: string, limit: number = 30): Promise<string[]> {
-  const url = `https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(
+export async function fetchWikiLinks(
+  title: string,
+  lang: string,
+  limit: number = 30,
+  onResolveTitle?: (resolvedTitle: string) => void,
+  variant?: string
+): Promise<string[]> {
+  let url = `https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(
     title
-  )}&prop=text&format=json&origin=*&redirects=1`;
+  )}&prop=text&format=json&origin=*&redirects=1${variant ? `&variant=${variant}` : ''}`;
 
   try {
-    const res = await fetch(url);
+    let res = await fetch(url);
     if (!res.ok) throw new Error('Failed to fetch Wikipedia page parsed text');
     
-    const data = await res.json();
+    let data = await res.json();
+
+    // Fallback: If page doesn't exist, try resolving its canonical title first
+    if (data.error && (data.error.code === 'missingtitle' || data.error.info?.includes("doesn't exist"))) {
+      const resolved = await resolveCanonicalTitle(title, lang);
+      if (resolved && resolved !== title) {
+        if (onResolveTitle) {
+          onResolveTitle(resolved);
+        }
+        url = `https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(
+          resolved
+        )}&prop=text&format=json&origin=*&redirects=1${variant ? `&variant=${variant}` : ''}`;
+        res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch Wikipedia page parsed text after title resolution');
+        data = await res.json();
+      }
+    }
+
     if (data.error || !data.parse || !data.parse.text) {
       return [];
+    }
+
+    // If parse succeeded and returned a redirected or canonical form, notify caller
+    if (data.parse && data.parse.title) {
+      const canonicalTitle = cleanTitle(data.parse.title);
+      if (canonicalTitle && cleanTitle(title) !== canonicalTitle) {
+        if (onResolveTitle) {
+          onResolveTitle(canonicalTitle);
+        }
+      }
     }
 
     const htmlContent = data.parse.text['*'];
@@ -205,12 +267,12 @@ export async function fetchWikiLinks(title: string, lang: string, limit: number 
  */
 export async function fetchWikiSummary(
   title: string,
-  lang: string
+  lang: string,
+  variant?: string
 ): Promise<{ extract: string; thumbnail?: string; url: string; resolvedTitle?: string; isNotFound?: boolean }> {
   const url = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages&exintro=1&explaintext=1&exchars=350&pithumbsize=400&format=json&origin=*&redirects=1&converttitles=1&titles=${encodeURIComponent(
     title
-  )}`;
-  const pageUrl = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+  )}${variant ? `&variant=${variant}` : ''}`;
 
   try {
     const res = await fetch(url);
@@ -218,26 +280,32 @@ export async function fetchWikiSummary(
     
     const data: WikiSummaryResponse = await res.json();
     const pages = data.query?.pages;
-    if (!pages) return { extract: '無法取得此條目的內容摘要。', url: pageUrl };
+    
+    const fallbackUrl = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+    if (!pages) return { extract: '無法取得此條目的內容摘要。', url: fallbackUrl };
 
     const pageId = Object.keys(pages)[0];
     const page = pages[pageId];
 
     if (!page || pageId === '-1') {
-      return { extract: '此條目可能不存在或已被移除。', url: pageUrl, isNotFound: true };
+      return { extract: '此條目可能不存在或已被移除。', url: fallbackUrl, isNotFound: true };
     }
+
+    const resolvedTitle = page.title || title;
+    const resolvedUrl = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(resolvedTitle.replace(/ /g, '_'))}`;
 
     return {
       extract: page.extract || '此條目目前無引言摘要。',
       thumbnail: page.thumbnail?.source,
-      url: pageUrl,
-      resolvedTitle: page.title,
+      url: resolvedUrl,
+      resolvedTitle: resolvedTitle,
     };
   } catch (error) {
     console.error('Error fetching summary:', error);
+    const fallbackUrl = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
     return {
       extract: '獲取條目摘要時發生錯誤，請稍後再試。',
-      url: pageUrl,
+      url: fallbackUrl,
     };
   }
 }

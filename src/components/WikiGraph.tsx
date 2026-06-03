@@ -66,7 +66,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       setHoverCardData(null);
 
       try {
-        const data = await fetchWikiSummary(node.id, node.lang);
+        const data = await fetchWikiSummary(node.id, node.lang, node.variant);
         setHoverCardData({
           extract: data.extract,
           thumbnail: data.thumbnail,
@@ -715,7 +715,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                   </text>
 
                   {/* Expansion Lock Lock Icon Switch */}
-                  {node.loaded && !node.isRoot && (
+                  {node.loaded && (
                     <g
                       transform={`translate(0, ${getNodeRadiusY(node) - 11})`}
                       className="cursor-pointer group/toggle pointer-events-auto"

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { WikiNode, WikiLink } from './types/wiki';
 import {
   parseWikiInput,
   searchWikiTitle,
   fetchWikiLinks,
+  resolveCanonicalTitle,
 } from './services/wikiApi';
 import { WikiGraph } from './components/WikiGraph';
 import { ControlPanel } from './components/ControlPanel';
@@ -125,11 +126,19 @@ export default function App() {
         targetTitle = await searchWikiTitle(parsed.title, parsed.lang);
       }
 
+      // 3. Resolve canonical title (handles character variants and redirects)
+      targetTitle = await resolveCanonicalTitle(targetTitle, parsed.lang);
+
       if (!targetTitle) {
         triggerToast('找不到相關的維基條目，請試試其他關鍵字', 'warning');
         setSearchLoading(false);
         return;
       }
+
+      // Determine variant (detect browser language if Chinese, default to zh-tw)
+      const userLang = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : '';
+      const browserChineseVariant = userLang.startsWith('zh-') ? userLang : 'zh-tw';
+      const variant = parsed.variant || (parsed.lang === 'zh' ? browserChineseVariant : undefined);
 
       // 3. Setup root node
       const rootNode: WikiNode = {
@@ -139,6 +148,7 @@ export default function App() {
         url: `https://${parsed.lang}.wikipedia.org/wiki/${encodeURIComponent(targetTitle.replace(/ /g, '_'))}`,
         isRoot: true,
         lang: parsed.lang,
+        variant, // Store variant!
         depth: 0, // Root node is depth 0
       };
 
@@ -181,7 +191,37 @@ export default function App() {
       if (exploredLinksMap[node.id]) {
         allTitles = exploredLinksMap[node.id];
       } else {
-        allTitles = await fetchWikiLinks(node.id, node.lang, 0); // 0 parses all outgoing links
+        const onResolve = (resolved: string) => {
+          setNodes((prevNodes) => {
+            const targetNode = prevNodes.find((n) => n.id === node.id);
+            if (targetNode && targetNode.label === resolved) {
+              return prevNodes;
+            }
+            return prevNodes.map((n) =>
+              n.id === node.id
+                ? {
+                    ...n,
+                    label: resolved,
+                    url: `https://${n.lang}.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, '_'))}`,
+                  }
+                : n
+            );
+          });
+          setSelectedNode((prev) => {
+            if (prev && prev.id === node.id) {
+              if (prev.label === resolved) {
+                return prev;
+              }
+              return {
+                ...prev,
+                label: resolved,
+                url: `https://${prev.lang}.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, '_'))}`,
+              };
+            }
+            return prev;
+          });
+        };
+        allTitles = await fetchWikiLinks(node.id, node.lang, 0, onResolve, node.variant); // 0 parses all outgoing links
         setExploredLinksMap((prev) => ({
           ...prev,
           [node.id]: allTitles,
@@ -221,6 +261,7 @@ export default function App() {
               loaded: false,
               url: `https://${node.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
               lang: node.lang,
+              variant: node.variant, // Inherit variant!
               depth: (node.depth ?? 0) + 1, // Depth is parent's depth + 1
             });
             existingNodeIds.add(title); // Track to avoid duplicates inside this batch
@@ -292,6 +333,7 @@ export default function App() {
       loaded: false,
       url: `https://${selectedNode.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
       lang: selectedNode.lang,
+      variant: selectedNode.variant, // Pass variant down!
       depth: (selectedNode.depth ?? 0) + 1,
     };
 
@@ -363,7 +405,37 @@ export default function App() {
 
     try {
       // 4. Fetch outgoing links freshly
-      const allTitles = await fetchWikiLinks(node.id, node.lang, 0); // 0 parses all outgoing links
+      const onResolve = (resolved: string) => {
+        setNodes((prevNodes) => {
+          const targetNode = prevNodes.find((n) => n.id === node.id);
+          if (targetNode && targetNode.label === resolved) {
+            return prevNodes;
+          }
+          return prevNodes.map((n) =>
+            n.id === node.id
+              ? {
+                  ...n,
+                  label: resolved,
+                  url: `https://${n.lang}.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, '_'))}`,
+                }
+              : n
+          );
+        });
+        setSelectedNode((prev) => {
+          if (prev && prev.id === node.id) {
+            if (prev.label === resolved) {
+              return prev;
+            }
+            return {
+              ...prev,
+              label: resolved,
+              url: `https://${prev.lang}.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, '_'))}`,
+            };
+          }
+          return prev;
+        });
+      };
+      const allTitles = await fetchWikiLinks(node.id, node.lang, 0, onResolve, node.variant); // 0 parses all outgoing links
       
       setExploredLinksMap((prev) => ({
         ...prev,
@@ -401,6 +473,7 @@ export default function App() {
               loaded: false,
               url: `https://${node.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
               lang: node.lang,
+              variant: node.variant, // Pass variant down!
               depth: (node.depth ?? 0) + 1,
             });
             existingNodeIds.add(title);
@@ -573,6 +646,7 @@ export default function App() {
             loaded: false,
             url: `https://${selectedNode.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
             lang: selectedNode.lang,
+            variant: selectedNode.variant, // Pass variant down!
             depth: (selectedNode.depth ?? 0) + 1,
           });
         }
@@ -633,7 +707,7 @@ export default function App() {
   };
 
   // Flags non-existent pages in global state
-  const handleMarkDeadEnd = (nodeId: string) => {
+  const handleMarkDeadEnd = useCallback((nodeId: string) => {
     setNodes((prev) =>
       prev.map((n) => (n.id === nodeId ? { ...n, isDeadEnd: true, loaded: true, loading: false } : n))
     );
@@ -642,7 +716,39 @@ export default function App() {
         prev ? { ...prev, isDeadEnd: true, loaded: true, loading: false } : null
       );
     }
-  };
+  }, [selectedNode?.id]);
+
+  // Dynamically updates a node's label and URL when a canonical title is resolved
+  const handleUpdateNodeLabel = useCallback((nodeId: string, resolvedTitle: string) => {
+    setNodes((prevNodes) => {
+      const targetNode = prevNodes.find((n) => n.id === nodeId);
+      if (targetNode && targetNode.label === resolvedTitle) {
+        return prevNodes;
+      }
+      return prevNodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              label: resolvedTitle,
+              url: `https://${n.lang}.wikipedia.org/wiki/${encodeURIComponent(resolvedTitle.replace(/ /g, '_'))}`,
+            }
+          : n
+      );
+    });
+    setSelectedNode((prev) => {
+      if (prev && prev.id === nodeId) {
+        if (prev.label === resolvedTitle) {
+          return prev;
+        }
+        return {
+          ...prev,
+          label: resolvedTitle,
+          url: `https://${prev.lang}.wikipedia.org/wiki/${encodeURIComponent(resolvedTitle.replace(/ /g, '_'))}`,
+        };
+      }
+      return prev;
+    });
+  }, []);
 
   // Trace ancestral path of active selected node back to the root
   const getActivePathSet = (): Set<string> => {
@@ -824,6 +930,7 @@ export default function App() {
         onReSearch={handleReSearch}
         isExpanded={selectedNode ? expandedNodeIds.has(selectedNode.id) : false}
         onToggleExpand={() => selectedNode && handleToggleNodeExpand(selectedNode.id)}
+        onUpdateNodeLabel={handleUpdateNodeLabel}
       />
 
       {/* 4. Customized Right-Click Operations overlay */}

@@ -9,6 +9,7 @@ export interface WikiNode extends d3.SimulationNodeDatum {
   isRoot?: boolean;    // Whether this node is the search-initiated entry root
   isDeadEnd?: boolean; // Whether the node has no outgoing mainlinks
   lang: string;        // The language of this specific node (e.g. "zh", "en", "ja")
+  variant?: string;    // The language variant (e.g. "zh-tw", "zh-cn")
   depth?: number;      // Hierarchical generation depth (0 = root, 1 = children, 2 = grandchildren...)
   treeX?: number;      // Target X coordinate in Horizontal Tree Layout
   treeY?: number;      // Target Y coordinate in Horizontal Tree Layout
