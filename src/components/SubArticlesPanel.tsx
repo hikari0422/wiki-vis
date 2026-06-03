@@ -24,7 +24,7 @@ export const SubArticlesPanel: React.FC<SubArticlesPanelProps> = ({
     setSelectedValue('');
   }, [selectedNode?.id]);
 
-  if (!selectedNode || allSubArticles.length <= 50) return null;
+  if (!selectedNode || allSubArticles.length === 0) return null;
 
   // Filter out sub-articles that are already displayed on the whiteboard
   const hiddenSubArticles = allSubArticles.filter((title) => !visibleNodeIds.has(title));

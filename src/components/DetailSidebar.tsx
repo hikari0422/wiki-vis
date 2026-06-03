@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { X, ExternalLink, Target, Trash2, Network, Loader2, BookOpen, RotateCw } from 'lucide-react';
 import type { WikiNode } from '../types/wiki';
 import { fetchWikiSummary } from '../services/wikiApi';
@@ -36,8 +36,20 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(false);
 
+  // Cache only the last clicked node's summary data to prevent duplicate requests
+  const lastFetchedRef = useRef<{
+    nodeId: string;
+    extract: string;
+    thumbnail?: string;
+    resolvedTitle?: string;
+    isNotFound?: boolean;
+  } | null>(null);
+
   const handleReSearchClick = async () => {
     if (!node) return;
+    
+    // Clear last fetched cache to force a fresh fetch
+    lastFetchedRef.current = null;
     
     // 1. Trigger parent re-search to fetch and sync links
     onReSearch(node);
@@ -48,6 +60,15 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
       const data = await fetchWikiSummary(node.id, node.lang, node.variant);
       setSummary(data.extract);
       setThumbnail(data.thumbnail);
+      
+      lastFetchedRef.current = {
+        nodeId: node.id,
+        extract: data.extract,
+        thumbnail: data.thumbnail,
+        resolvedTitle: data.resolvedTitle,
+        isNotFound: data.isNotFound,
+      };
+
       if (data.resolvedTitle && data.resolvedTitle !== node.id) {
         onUpdateNodeLabel?.(node.id, data.resolvedTitle);
       }
@@ -68,11 +89,34 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
     if (!node) return;
 
     const loadSummary = async () => {
+      // Check cache first (only cache the last selected node)
+      const cached = lastFetchedRef.current;
+      if (cached && cached.nodeId === node.id) {
+        setSummary(cached.extract);
+        setThumbnail(cached.thumbnail);
+        if (cached.resolvedTitle && cached.resolvedTitle !== node.id) {
+          onUpdateNodeLabel?.(node.id, cached.resolvedTitle);
+        }
+        if (cached.isNotFound) {
+          onMarkDeadEnd(node.id);
+        }
+        return;
+      }
+
       setLoading(true);
       try {
         const data = await fetchWikiSummary(node.id, node.lang, node.variant);
         setSummary(data.extract);
         setThumbnail(data.thumbnail);
+        
+        lastFetchedRef.current = {
+          nodeId: node.id,
+          extract: data.extract,
+          thumbnail: data.thumbnail,
+          resolvedTitle: data.resolvedTitle,
+          isNotFound: data.isNotFound,
+        };
+
         if (data.resolvedTitle && data.resolvedTitle !== node.id) {
           onUpdateNodeLabel?.(node.id, data.resolvedTitle);
         }
@@ -95,8 +139,8 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
 
   return (
     <div
-      className={`fixed top-0 right-0 h-full w-80 md:w-96 bg-white/80 backdrop-blur-xl border-l border-slate-200/50 shadow-2xl z-40 transition-transform duration-300 ease-out transform ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
+      className={`fixed top-4 right-4 bottom-4 w-80 md:w-96 bg-white/85 backdrop-blur-2xl border border-slate-200/60 rounded-3xl shadow-2xl z-40 transition-all duration-300 ease-out ${
+        isOpen ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-12 opacity-0 scale-95 pointer-events-none'
       }`}
     >
       {/* Sidebar Container */}
