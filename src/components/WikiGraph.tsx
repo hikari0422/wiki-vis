@@ -6,7 +6,7 @@ import { fetchWikiSummary } from '../services/wikiApi';
 interface WikiGraphProps {
   nodes: WikiNode[];
   links: WikiLink[];
-  layoutMode: 'hierarchical' | 'radial' | 'tree';
+  layoutMode: 'hierarchical' | 'radial';
   onNodeClick: (node: WikiNode) => void;
   onNodeRightClick: (node: WikiNode, e: React.MouseEvent) => void;
   onMarkDeadEnd: (nodeId: string) => void; // Flag non-existent nodes
@@ -41,6 +41,11 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
   const gRef = useRef<SVGGElement | null>(null);
   const simulationRef = useRef<d3.Simulation<WikiNode, WikiLink> | null>(null);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+
+  // Refs to cache last state to prevent unnecessary simulation restarts
+  const prevNodesStrRef = useRef<string>('');
+  const prevLinksStrRef = useRef<string>('');
+  const prevLayoutModeRef = useRef<'hierarchical' | 'radial'>('hierarchical');
 
   // States for dynamic Hover Preview Card
   const [hoveredNode, setHoveredNode] = useState<WikiNode | null>(null);
@@ -296,6 +301,29 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     const container = containerRef.current;
     if (!svg || !container || nodes.length === 0) return;
 
+    // Serialize node IDs and link pairs to check for structural changes
+    const nodeIdsStr = nodes.map((n) => n.id).sort().join(',');
+    const linksStr = links
+      .map((l) => {
+        const src = typeof l.source === 'string' ? l.source : l.source.id;
+        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+        return `${src}->${tgt}`;
+      })
+      .sort()
+      .join(',');
+
+    const layoutChanged = prevLayoutModeRef.current !== layoutMode;
+    const dataChanged = nodeIdsStr !== prevNodesStrRef.current || linksStr !== prevLinksStrRef.current;
+
+    prevLayoutModeRef.current = layoutMode;
+    prevNodesStrRef.current = nodeIdsStr;
+    prevLinksStrRef.current = linksStr;
+
+    // If neither layout nor data has changed (e.g. only node selection changed), do not restart simulation
+    if (!dataChanged && !layoutChanged) {
+      return;
+    }
+
     // Stop previous simulation if active
     if (simulationRef.current) {
       simulationRef.current.stop();
@@ -308,18 +336,82 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       target: typeof l.target === 'string' ? l.target : l.target.id,
     }));
 
+    // Initialize position of newly added nodes near their parent node to avoid violent layout jumps
+    nodes.forEach((node) => {
+      if (node.x === undefined || node.y === undefined) {
+        const incomingLink = cleanLinks.find(
+          (l) => l.target === node.id
+        );
+        if (incomingLink) {
+          const parentNode = nodes.find((n) => n.id === incomingLink.source);
+          if (parentNode && parentNode.x !== undefined && parentNode.y !== undefined) {
+            node.x = parentNode.x + (Math.random() - 0.5) * 20;
+            node.y = parentNode.y + (Math.random() - 0.5) * 20;
+          }
+        }
+      }
+    });
+
     // Unfreeze all nodes to allow the simulation to settle them cleanly without overlaps!
     nodes.forEach((node) => {
       node.fx = null;
       node.fy = null;
     });
 
+    // Count nodes by depth to calculate dynamic radial distances
+    const nodesByDepthForRadial: { [key: number]: WikiNode[] } = {};
+    nodes.forEach((node) => {
+      const depth = node.depth ?? 0;
+      if (!nodesByDepthForRadial[depth]) nodesByDepthForRadial[depth] = [];
+      nodesByDepthForRadial[depth].push(node);
+    });
+
+    const radialRadii: { [depth: number]: number } = { 0: 0 };
+    const maxDepth = d3.max(nodes, (d) => d.depth ?? 0) ?? 0;
+
+    let currentRadius = 0;
+    const defaultStep = 220;
+    const nodePadding = 45; // Safe padding between nodes on the circle
+
+    for (let d = 1; d <= maxDepth; d++) {
+      const tierNodes = nodesByDepthForRadial[d] || [];
+      const K = tierNodes.length;
+      
+      // Calculate the average horizontal width (diameter) of nodes in this tier
+      let totalWidth = 0;
+      tierNodes.forEach((node) => {
+        totalWidth += getNodeRadiusX(node) * 2;
+      });
+      const avgNodeWidth = K > 0 ? totalWidth / K : 100;
+      
+      // Minimum circumference needed to place K nodes side-by-side
+      const requiredCircumference = K * (avgNodeWidth + nodePadding);
+      const minStep = requiredCircumference / (2 * Math.PI);
+      
+      const step = Math.max(defaultStep, minStep);
+      currentRadius += step;
+      radialRadii[d] = currentRadius;
+    }
+
     // Set up or update Simulation
     // Hierarchical top-down spacing forces (spreads left & right in distinct vertical rows)
     const simulation = d3.forceSimulation<WikiNode, WikiLink>(nodes)
       .force('link', d3.forceLink<WikiNode, WikiLink>(cleanLinks)
         .id((d) => d.id)
-        .distance(layoutMode === 'hierarchical' ? 110 : 130)
+        .distance((link) => {
+          if (layoutMode === 'hierarchical') {
+            return 110;
+          } else {
+            // Radial layout: link distance matches the radial step between parent and child
+            const source = link.source as unknown as WikiNode;
+            const target = link.target as unknown as WikiNode;
+            const srcDepth = source.depth ?? 0;
+            const tgtDepth = target.depth ?? 0;
+            const srcR = radialRadii[srcDepth] || 0;
+            const tgtR = radialRadii[tgtDepth] || 0;
+            return Math.max(130, tgtR - srcR);
+          }
+        })
         .strength(0.7)
       )
       .force('charge', d3.forceManyBody().strength(layoutMode === 'hierarchical' ? -400 : -250).distanceMax(500))
@@ -332,7 +424,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     } else {
       // Concentric radial circles based on depth
       simulation
-        .force('radial', d3.forceRadial<WikiNode>((d) => (d.depth ?? 0) * 220, 0, 0).strength(0.85))
+        .force('radial', d3.forceRadial<WikiNode>((d) => radialRadii[d.depth ?? 0] || 0, 0, 0).strength(0.85))
         .force('center', d3.forceCenter(0, 0).strength(0.05));
     }
 
@@ -358,10 +450,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
           nodesByDepth[depth].push(d);
         });
 
-        // Rigid fixed horizontal spacing between nodes in the same row
-        const horizontalSpacing = 190;
-
-        // Enforce absolute vertical tracks and equal horizontal intervals
+        // Enforce absolute vertical tracks and dynamic horizontal spacing to avoid overlaps
         Object.keys(nodesByDepth).forEach((depthKey) => {
           const depth = parseInt(depthKey);
           const tierNodes = nodesByDepth[depth];
@@ -370,13 +459,29 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
           tierNodes.sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
 
           const N = tierNodes.length;
+
+          // Dynamically calculate horizontal spacing for this tier based on node widths
+          let tierSpacing = 190; // Default base spacing
+          if (N > 1) {
+            let maxRequired = 0;
+            for (let i = 0; i < N - 1; i++) {
+              const r1 = getNodeRadiusX(tierNodes[i]);
+              const r2 = getNodeRadiusX(tierNodes[i + 1]);
+              const required = r1 + r2 + 40; // 40px padding for safety and aesthetics
+              if (required > maxRequired) {
+                maxRequired = required;
+              }
+            }
+            tierSpacing = Math.max(190, maxRequired);
+          }
+
           tierNodes.forEach((node, index) => {
             // Lock node strictly on its generational horizontal row
             node.y = depth * 160;
 
             // Align horizontal nodes side-by-side with locked, equal spacing
             if (node.fx === null || node.fx === undefined) {
-              const targetX = (index - (N - 1) / 2) * horizontalSpacing;
+              const targetX = (index - (N - 1) / 2) * tierSpacing;
               // Smoothly interpolate towards the target X to avoid sudden snaps
               node.x = (node.x ?? 0) + (targetX - (node.x ?? 0)) * 0.15;
             }
@@ -384,58 +489,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
         });
       }
 
-      linkElements.attr('d', (d) => {
-        const source = d.source as unknown as WikiNode;
-        const target = d.target as unknown as WikiNode;
-        
-        // Safety checks to ensure source and target are fully resolved objects
-        if (!source || !target || typeof source === 'string' || typeof target === 'string') {
-          return '';
-        }
-        
-        const px = source.x ?? 0;
-        const py = source.y ?? 0;
-        const cx = target.x ?? 0;
-        const cy = target.y ?? 0;
-
-        const sourceRx = getNodeRadiusX(source);
-        const sourceRy = getNodeRadiusY(source);
-        const targetRx = getNodeRadiusX(target);
-        const targetRy = getNodeRadiusY(target);
-        
-        if (layoutMode === 'hierarchical') {
-          const midY = (py + cy) / 2;
-          const arrowCompensation = 7; // Shorten line by 7px so arrow is fully visible
-          const targetYOffset = cy > midY ? -(targetRy + arrowCompensation) : (targetRy + arrowCompensation);
-          return `M ${px} ${py} L ${px} ${midY} L ${cx} ${midY} L ${cx} ${cy + targetYOffset}`;
-        } else {
-          const dx = px - cx;
-          const dy = py - cy;
-          const dist = Math.hypot(dx, dy);
-          if (dist === 0) {
-            return `M ${px} ${py} L ${cx} ${cy}`;
-          }
-          // Ellipse intersection factor t
-          const t = 1 / Math.sqrt((dx * dx) / (targetRx * targetRx) + (dy * dy) / (targetRy * targetRy));
-          
-          // Source ellipse intersection factor tSource
-          const tSource = 1 / Math.sqrt((dx * dx) / (sourceRx * sourceRx) + (dy * dy) / (sourceRy * sourceRy));
-          
-          // Apply line shortening compensation at both ends so the arrow marker is visible and does not overlap
-          const arrowCompensation = 7; // Shift end point 7px back towards source
-          const startCompensation = 2; // Shift start point 2px forward towards target
-          
-          const tOffset = arrowCompensation / dist;
-          const tSourceOffset = startCompensation / dist;
-          
-          const startX = px - Math.max(0, tSource - tSourceOffset) * dx;
-          const startY = py - Math.max(0, tSource - tSourceOffset) * dy;
-          const endX = cx + (t + tOffset) * dx;
-          const endY = cy + (t + tOffset) * dy;
-          
-          return `M ${startX} ${startY} L ${endX} ${endY}`;
-        }
-      });
+      linkElements.attr('d', getLinkPath);
 
       nodeElements.attr('transform', (d) => `translate(${d.x ?? 0}, ${d.y ?? 0})`);
 
@@ -534,6 +588,81 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     return Math.round(baseRx * randomScale);
   };
 
+  // Helper to calculate link path data (d attribute) dynamically
+  const getLinkPath = (link: WikiLink): string => {
+    // Resolve source and target to the actual WikiNode objects from the nodes array if they are strings
+    const source = typeof link.source === 'string' 
+      ? nodes.find(n => n.id === link.source) 
+      : link.source;
+    const target = typeof link.target === 'string' 
+      ? nodes.find(n => n.id === link.target) 
+      : link.target;
+    
+    // Safety checks to ensure source and target are fully resolved objects
+    if (!source || !target || typeof source === 'string' || typeof target === 'string') {
+      return '';
+    }
+    
+    const px = source.x ?? 0;
+    const py = source.y ?? 0;
+    const cx = target.x ?? 0;
+    const cy = target.y ?? 0;
+
+    const sourceRx = getNodeRadiusX(source);
+    const sourceRy = getNodeRadiusY(source);
+    const targetRx = getNodeRadiusX(target);
+    const targetRy = getNodeRadiusY(target);
+    
+    if (layoutMode === 'hierarchical') {
+      const midY = (py + cy) / 2;
+      const arrowCompensation = 7; // Shorten line by 7px so arrow is fully visible
+      const targetYOffset = cy > midY ? -(targetRy + arrowCompensation) : (targetRy + arrowCompensation);
+      return `M ${px} ${py} L ${px} ${midY} L ${cx} ${midY} L ${cx} ${cy + targetYOffset}`;
+    } else {
+      const dx = cx - px; // Vector from source to target
+      const dy = cy - py;
+      const dist = Math.hypot(dx, dy);
+      if (dist === 0) {
+        return `M ${px} ${py} L ${cx} ${cy}`;
+      }
+
+      // Calculate ellipse radius at the angle of the link
+      // For source node:
+      const tSource = 1 / Math.sqrt((dx * dx) / (sourceRx * sourceRx) + (dy * dy) / (sourceRy * sourceRy));
+      const sourceRadius = tSource * dist;
+
+      // For target node:
+      const tTarget = 1 / Math.sqrt((dx * dx) / (targetRx * targetRx) + (dy * dy) / (targetRy * targetRy));
+      const targetRadius = tTarget * dist;
+
+      // Fallback if centers are inside either radius (complete or near-complete overlap)
+      if (dist < sourceRadius || dist < targetRadius) {
+        return `M ${px} ${py} L ${cx} ${cy}`;
+      }
+
+      const arrowCompensation = 7; // Shift end point 7px back towards source
+      const startCompensation = 2; // Shift start point 2px forward towards target
+
+      const startDist = sourceRadius + startCompensation;
+      const endDist = dist - (targetRadius + arrowCompensation);
+
+      if (startDist < endDist) {
+        const startX = px + (startDist / dist) * dx;
+        const startY = py + (startDist / dist) * dy;
+        const endX = px + (endDist / dist) * dx;
+        const endY = py + (endDist / dist) * dy;
+        return `M ${startX} ${startY} L ${endX} ${endY}`;
+      } else {
+        // Nodes are close or overlapping. Draw exactly between boundaries to avoid coordinate flipping.
+        const startX = px + tSource * dx;
+        const startY = py + tSource * dy;
+        const endX = cx - tTarget * dx;
+        const endY = cy - tTarget * dy;
+        return `M ${startX} ${startY} L ${endX} ${endY}`;
+      }
+    }
+  };
+
   // Helper to determine node visual classes
   const getNodeClasses = (node: WikiNode) => {
     const isSelected = selectedNode?.id === node.id;
@@ -625,7 +754,8 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
               return (
                 <path
                   key={`link-${sourceId}-${targetId}-${idx}`}
-                  className="graph-link transition-all"
+                  className="graph-link"
+                  d={getLinkPath(link)}
                   stroke={isSelectedPath ? '#818cf8' : '#e2e8f0'}
                   strokeWidth={isSelectedPath ? 2.5 : 1.5}
                   fill="none"

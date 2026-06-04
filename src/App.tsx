@@ -10,9 +10,8 @@ import { WikiGraph } from './components/WikiGraph';
 import { ControlPanel } from './components/ControlPanel';
 import { DetailSidebar } from './components/DetailSidebar';
 import { ContextMenu } from './components/ContextMenu';
-import { Toast } from './components/Toast';
-import type { ToastMessage, ToastType } from './components/Toast';
-import { Compass, Layers, Share2, GitFork, Info } from 'lucide-react';
+
+import { Compass, Layers, Share2, Info } from 'lucide-react';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SubArticlesPanel } from './components/SubArticlesPanel';
 import { PathTimeline } from './components/PathTimeline';
@@ -22,8 +21,8 @@ export default function App() {
   const [nodes, setNodes] = useState<WikiNode[]>([]);
   const [links, setLinks] = useState<WikiLink[]>([]);
   
-  // Layout mode state: 'hierarchical' | 'radial' | 'tree'
-  const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'radial' | 'tree'>('hierarchical');
+  // Layout mode state: 'hierarchical' | 'radial'
+  const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'radial'>('hierarchical');
   
   // Expanded node IDs state (keeps branches locked open in Focused Pathway mode)
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
@@ -88,21 +87,11 @@ export default function App() {
   const [resetZoomTrigger, setResetZoomTrigger] = useState<number>(0);
   
   // Custom overlays
-  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     node: WikiNode;
   } | null>(null);
-
-  // Trigger temporary toast message
-  const triggerToast = (message: string, type: ToastType = 'info') => {
-    setToast({
-      id: Math.random().toString(36).substring(2, 9),
-      type,
-      message,
-    });
-  };
 
 
 
@@ -130,7 +119,6 @@ export default function App() {
       targetTitle = await resolveCanonicalTitle(targetTitle, parsed.lang);
 
       if (!targetTitle) {
-        triggerToast('找不到相關的維基條目，請試試其他關鍵字', 'warning');
         setSearchLoading(false);
         return;
       }
@@ -157,14 +145,11 @@ export default function App() {
       setDeepestActiveId(targetTitle);
       setClickHistory([rootNode]);
       
-      triggerToast(`成功定位條目「${targetTitle}」，點擊節點下方的「+」展開網絡！`, 'success');
-      
       // Auto reset zoom back to center
       setResetZoomTrigger((prev) => prev + 1);
 
     } catch (error) {
       console.error(error);
-      triggerToast('載入維基條目失敗，請檢查網路連線或網址格式是否正確', 'error');
     } finally {
       setSearchLoading(false);
     }
@@ -240,7 +225,6 @@ export default function App() {
             prev ? { ...prev, loaded: true, loading: false, isDeadEnd: true } : null
           );
         }
-        triggerToast(`「${node.id}」是終端節點，沒有其他知識外連`, 'warning');
         return;
       }
 
@@ -305,11 +289,8 @@ export default function App() {
         return [...prevLinks, ...newLinksToAdd];
       });
 
-      triggerToast(`成功展開「${node.id}」，探索出 ${fetchedTitles.length} 個外連通道！`, 'success');
-
     } catch (error) {
       console.error(error);
-      triggerToast('展開節點連結失敗，請檢查網路連線', 'error');
       // Revert loading state
       setNodes((prevNodes) =>
         prevNodes.map((n) => (n.id === node.id ? { ...n, loading: false } : n))
@@ -363,8 +344,6 @@ export default function App() {
     setSelectedNode(newNode);
     setDeepestActiveId(newNode.id);
     setIsSidebarOpen(true);
-
-    triggerToast(`已成功將隱藏條目「${title}」加入白板並展開！`, 'success');
 
     // Auto explore the newly spawned child
     setTimeout(() => {
@@ -452,7 +431,6 @@ export default function App() {
         setSelectedNode((prev) =>
           prev && prev.id === node.id ? { ...prev, loaded: true, loading: false, isDeadEnd: true } : prev
         );
-        triggerToast(`重新搜尋完成，「${node.id}」依然是終端節點`, 'warning');
         return;
       }
 
@@ -515,11 +493,8 @@ export default function App() {
         return [...prevLinks, ...newLinksToAdd];
       });
 
-      triggerToast(`「${node.id}」重新搜尋完成！已成功抓取並解析 ${fetchedTitles.length} 個外連超連結。`, 'success');
-
     } catch (error) {
       console.error(error);
-      triggerToast('重新搜尋失敗，請檢查網路連線', 'error');
       // Revert loading state
       setNodes((prevNodes) =>
         prevNodes.map((n) => (n.id === node.id ? { ...n, loading: false } : n))
@@ -538,9 +513,6 @@ export default function App() {
     setIsSidebarOpen(true);
     setContextMenu(null);
     setExpandedNodeIds(new Set());
-    
-    // Smooth transition
-    triggerToast(`正將「${node.id}」設為新探索中心...`, 'info');
     
     const nextRoot: WikiNode = {
       ...node,
@@ -590,7 +562,6 @@ export default function App() {
       return next;
     });
 
-    triggerToast(`已從白板中移除節點「${node.id}」`, 'info');
   };
 
   /**
@@ -615,7 +586,6 @@ export default function App() {
     setIsSidebarOpen(false);
     setContextMenu(null);
     setClickHistory([]);
-    triggerToast('白板畫布已全面清空。您可以輸入全新主題開始探索！', 'info');
   };
 
   // 5. Watch for branch limit changes to dynamically update visible sublinks instantly!
@@ -688,7 +658,7 @@ export default function App() {
   }, [limit, selectedNode?.id]);
 
   // Coordinate coordinator that releases locks and toggles modes
-  const handleLayoutModeChange = (mode: 'hierarchical' | 'radial' | 'tree') => {
+  const handleLayoutModeChange = (mode: 'hierarchical' | 'radial') => {
     setLayoutMode(mode);
     setNodes((prevNodes) =>
       prevNodes.map((n) => ({
@@ -699,11 +669,8 @@ export default function App() {
     );
     setResetZoomTrigger((prev) => prev + 1);
     
-    let modeText = '直線階層';
-    if (mode === 'radial') modeText = '放射網絡';
-    if (mode === 'tree') modeText = '樹狀圖譜';
+
     
-    triggerToast(`已切換為「${modeText}」排列模式`, 'info');
   };
 
   // Flags non-existent pages in global state
@@ -978,19 +945,6 @@ export default function App() {
               <Share2 className="w-3.5 h-3.5" />
               <span>放射排列</span>
             </button>
-            <button
-              type="button"
-              onClick={() => handleLayoutModeChange('tree')}
-              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
-                layoutMode === 'tree'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
-              }`}
-              title="水平向右樹狀排列"
-            >
-              <GitFork className="w-3.5 h-3.5 rotate-90" />
-              <span>樹狀排列</span>
-            </button>
           </div>
 
           {/* Divider */}
@@ -1047,8 +1001,7 @@ export default function App() {
         </button>
       )}
 
-      {/* 6. Sleek Popup alert overlays */}
-      <Toast toast={toast} onClose={() => setToast(null)} />
+
 
       {/* 7. Bottom Center Breadcrumb Exploration Timeline */}
       <PathTimeline
