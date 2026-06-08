@@ -627,16 +627,16 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
 
   // Helper to calculate link path data (d attribute) dynamically
   function getLinkPath(link: WikiLink): string {
-    // Resolve source and target to the actual WikiNode objects from the nodes array if they are strings
-    const source = typeof link.source === 'string' 
-      ? nodes.find(n => n.id === link.source) 
-      : link.source;
-    const target = typeof link.target === 'string' 
-      ? nodes.find(n => n.id === link.target) 
-      : link.target;
+    const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
+    const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+
+    // Always resolve to the latest node instances from the current nodes prop
+    // to prevent coordinate mismatch or rendering failures due to stale object references.
+    const source = nodes.find(n => n.id === sourceId);
+    const target = nodes.find(n => n.id === targetId);
     
     // Safety checks to ensure source and target are fully resolved objects
-    if (!source || !target || typeof source === 'string' || typeof target === 'string') {
+    if (!source || !target) {
       return '';
     }
     

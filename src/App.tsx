@@ -159,23 +159,23 @@ export default function App() {
       const parsed = parseWikiInput(input, searchLang);
       let targetTitle = parsed.title;
       
+      // Determine variant (detect browser language if Chinese, default to zh-tw)
+      const userLang = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : '';
+      const browserChineseVariant = userLang.startsWith('zh-') ? userLang : 'zh-tw';
+      const variant = parsed.variant || (parsed.lang === 'zh' ? browserChineseVariant : undefined);
+
       // 2. Resolve fuzzy query using search API if not a raw URL
       if (!parsed.isUrl) {
         targetTitle = await searchWikiTitle(parsed.title, parsed.lang);
       }
 
       // 3. Resolve canonical title (handles character variants and redirects)
-      targetTitle = await resolveCanonicalTitle(targetTitle, parsed.lang);
+      targetTitle = await resolveCanonicalTitle(targetTitle, parsed.lang, variant);
 
       if (!targetTitle) {
         setSearchLoading(false);
         return;
       }
-
-      // Determine variant (detect browser language if Chinese, default to zh-tw)
-      const userLang = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : '';
-      const browserChineseVariant = userLang.startsWith('zh-') ? userLang : 'zh-tw';
-      const variant = parsed.variant || (parsed.lang === 'zh' ? browserChineseVariant : undefined);
 
       // 3. Setup root node
       const rootNode: WikiNode = {

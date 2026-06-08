@@ -44,7 +44,7 @@ export const SubArticlesPanel: React.FC<SubArticlesPanelProps> = ({
   };
 
   return (
-    <div className="fixed top-20 left-4 right-4 w-auto max-h-[45vh] -translate-y-0 md:top-[55%] md:left-4 md:right-auto md:w-60 md:-translate-y-1/2 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-4 flex flex-col gap-3 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in duration-300">
+    <div className="fixed top-20 left-4 right-4 w-auto max-h-[45vh] translate-y-0 md:top-[55%] md:left-4 md:right-auto md:w-60 md:-translate-y-1/2 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-4 flex flex-col gap-3 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in">
       {/* Header Title */}
       <div className="flex items-center gap-1.5 border-b border-slate-100 pb-2 select-none">
         <Layers className="w-4 h-4 text-indigo-500" />

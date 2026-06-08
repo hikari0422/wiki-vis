@@ -15,6 +15,9 @@ interface WikiSummaryResponse {
           width: number;
           height: number;
         };
+        varianttitles?: {
+          [key: string]: string;
+        };
       };
     };
   };
@@ -93,10 +96,10 @@ export async function searchWikiTitle(query: string, lang: string): Promise<stri
 /**
  * Resolves the canonical title of a page by handling variant conversion and redirects.
  */
-export async function resolveCanonicalTitle(title: string, lang: string): Promise<string> {
+export async function resolveCanonicalTitle(title: string, lang: string, variant?: string): Promise<string> {
   const url = `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
     title
-  )}&redirects=1&converttitles=1&format=json&origin=*`;
+  )}&redirects=1&converttitles=1&prop=info&inprop=varianttitles&format=json&origin=*`;
 
   try {
     const res = await fetch(url);
@@ -106,13 +109,65 @@ export async function resolveCanonicalTitle(title: string, lang: string): Promis
     if (pages) {
       const pageId = Object.keys(pages)[0];
       if (pageId && pageId !== '-1') {
-        return pages[pageId].title || title;
+        const page = pages[pageId];
+        if (variant && page.varianttitles && page.varianttitles[variant]) {
+          return page.varianttitles[variant];
+        }
+        return page.title || title;
       }
     }
     return title;
   } catch (error) {
     console.error('Error resolving canonical title:', error);
     return title;
+  }
+}
+
+export interface ResolvedPageInfo {
+  pageid?: number;
+  canonicalTitle: string;
+  displayTitle: string;
+  exists: boolean;
+}
+
+/**
+ * Resolves complete page details including pageid, canonical database title, and variant display title.
+ */
+export async function resolvePageInfo(
+  title: string,
+  lang: string,
+  variant?: string
+): Promise<ResolvedPageInfo> {
+  const url = `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
+    title
+  )}&redirects=1&converttitles=1&prop=info&inprop=varianttitles&format=json&origin=*`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return { canonicalTitle: title, displayTitle: title, exists: false };
+    const data = await res.json();
+    const pages = data.query?.pages;
+    if (pages) {
+      const pageId = Object.keys(pages)[0];
+      if (pageId && pageId !== '-1') {
+        const page = pages[pageId];
+        const canonicalTitle = page.title || title;
+        let displayTitle = canonicalTitle;
+        if (variant && page.varianttitles && page.varianttitles[variant]) {
+          displayTitle = page.varianttitles[variant];
+        }
+        return {
+          pageid: parseInt(pageId, 10),
+          canonicalTitle,
+          displayTitle,
+          exists: true
+        };
+      }
+    }
+    return { canonicalTitle: title, displayTitle: title, exists: false };
+  } catch (error) {
+    console.error('Error resolving page info:', error);
+    return { canonicalTitle: title, displayTitle: title, exists: false };
   }
 }
 
@@ -138,18 +193,16 @@ export async function fetchWikiLinks(
     
     let data = await res.json();
 
-    // Fallback: If page doesn't exist, try resolving its canonical title first
+    // Fallback: If page doesn't exist, try resolving its canonical title and pageid first
     if (data.error && (data.error.code === 'missingtitle' || data.error.info?.includes("doesn't exist"))) {
-      const resolved = await resolveCanonicalTitle(title, lang);
-      if (resolved && resolved !== title) {
-        if (onResolveTitle) {
-          onResolveTitle(resolved);
+      const pageInfo = await resolvePageInfo(title, lang, variant);
+      if (pageInfo.exists) {
+        if (onResolveTitle && pageInfo.displayTitle !== title) {
+          onResolveTitle(pageInfo.displayTitle);
         }
-        url = `https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(
-          resolved
-        )}&prop=text&format=json&origin=*&redirects=1${variant ? `&variant=${variant}` : ''}`;
+        url = `https://${lang}.wikipedia.org/w/api.php?action=parse&pageid=${pageInfo.pageid}&prop=text&format=json&origin=*${variant ? `&variant=${variant}` : ''}`;
         res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch Wikipedia page parsed text after title resolution');
+        if (!res.ok) throw new Error('Failed to fetch Wikipedia page parsed text after pageid resolution');
         data = await res.json();
       }
     }
@@ -160,7 +213,10 @@ export async function fetchWikiLinks(
 
     // If parse succeeded and returned a redirected or canonical form, notify caller
     if (data.parse && data.parse.title) {
-      const canonicalTitle = cleanTitle(data.parse.title);
+      let canonicalTitle = cleanTitle(data.parse.title);
+      if (variant && variant.startsWith('zh')) {
+        canonicalTitle = await resolveCanonicalTitle(canonicalTitle, lang, variant);
+      }
       if (canonicalTitle && cleanTitle(title) !== canonicalTitle) {
         if (onResolveTitle) {
           onResolveTitle(canonicalTitle);
@@ -270,7 +326,7 @@ export async function fetchWikiSummary(
   lang: string,
   variant?: string
 ): Promise<{ extract: string; thumbnail?: string; url: string; resolvedTitle?: string; isNotFound?: boolean }> {
-  const url = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages&exintro=1&explaintext=1&exchars=350&pithumbsize=400&format=json&origin=*&redirects=1&converttitles=1&titles=${encodeURIComponent(
+  const url = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages|info&inprop=varianttitles&exintro=1&explaintext=1&exchars=350&pithumbsize=400&format=json&origin=*&redirects=1&converttitles=1&titles=${encodeURIComponent(
     title
   )}${variant ? `&variant=${variant}` : ''}`;
 
@@ -291,7 +347,10 @@ export async function fetchWikiSummary(
       return { extract: '此條目可能不存在或已被移除。', url: fallbackUrl, isNotFound: true };
     }
 
-    const resolvedTitle = page.title || title;
+    let resolvedTitle = page.title || title;
+    if (variant && page.varianttitles && page.varianttitles[variant]) {
+      resolvedTitle = page.varianttitles[variant];
+    }
     const resolvedUrl = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(resolvedTitle.replace(/ /g, '_'))}`;
 
     return {

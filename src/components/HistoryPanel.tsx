@@ -18,7 +18,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   if (!isOpen || history.length === 0) return null;
 
   return (
-    <div className="fixed top-20 left-4 right-4 w-auto max-h-[40vh] md:top-24 md:left-4 md:right-auto md:w-52 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-3 flex flex-col gap-2.5 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in duration-300">
+    <div className="fixed top-20 left-4 right-4 w-auto max-h-[40vh] md:top-24 md:left-4 md:right-auto md:w-52 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-3 flex flex-col gap-2.5 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in">
       {/* Panel Title Header */}
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
         <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 select-none">
@@ -31,7 +31,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
       </div>
 
       {/* Vertical Timeline List */}
-      <div className="flex flex-col gap-1.5 max-h-[260px] overflow-y-auto pr-1 scrollbar-thin">
+      <div className="flex flex-col gap-1.5 max-h-65 overflow-y-auto pr-1 scrollbar-thin">
         {history.map((node, index) => {
           const isCurrent = selectedNode?.id === node.id;
           return (
@@ -48,7 +48,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
               <div className="flex flex-col items-center shrink-0 mt-1">
                 <div className={`w-1.5 h-1.5 rounded-full ${isCurrent ? 'bg-white' : 'bg-slate-300 group-hover:bg-indigo-500'} transition-colors`} />
                 {index < history.length - 1 && (
-                  <div className={`w-[1px] h-4 border-l border-dashed ${isCurrent ? 'border-indigo-300' : 'border-slate-200'} mt-1`} />
+                  <div className={`w-px h-4 border-l border-dashed ${isCurrent ? 'border-indigo-300' : 'border-slate-200'} mt-1`} />
                 )}
               </div>
 
@@ -63,7 +63,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
               </div>
 
               {/* Arrow right on hover */}
-              <ArrowRight className={`w-3 h-3 shrink-0 self-center opacity-0 group-hover:opacity-100 transition-all ${isCurrent ? 'text-white' : 'text-indigo-500'} translate-x-[-4px] group-hover:translate-x-0`} />
+              <ArrowRight className={`w-3 h-3 shrink-0 self-center opacity-0 group-hover:opacity-100 transition-all ${isCurrent ? 'text-white' : 'text-indigo-500'} -translate-x-1 group-hover:translate-x-0`} />
             </button>
           );
         })}

@@ -23,7 +23,7 @@ export const PathTimeline: React.FC<PathTimelineProps> = ({ path, onNodeClick })
   if (path.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-2 flex items-center gap-1.5 max-w-[90vw] md:max-w-2xl md:bottom-6 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-bottom-5 fade-in duration-500">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-2 flex items-center gap-1.5 max-w-[90vw] md:max-w-2xl md:bottom-6 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-bottom-5 fade-in">
       
       {/* Icon Badge */}
       <div className="flex items-center shrink-0 pl-1">

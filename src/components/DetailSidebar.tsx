@@ -174,7 +174,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
           </div>
 
           {/* Title */}
-          <h2 className="text-xl font-bold text-slate-900 leading-tight mb-4 break-words">
+          <h2 className="text-xl font-bold text-slate-900 leading-tight mb-4 wrap-break-word">
             {node.id}
           </h2>
 

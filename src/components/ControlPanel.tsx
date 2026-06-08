@@ -92,7 +92,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         {!hasNodes && (
           <div className="text-center w-full mb-1 animate-in fade-in slide-in-from-top-4 duration-500 flex flex-col items-center">
             <Compass className="w-14 h-14 text-indigo-600 mb-3.5 animate-spin-slow" />
-            <h1 className="text-3xl font-extrabold bg-gradient-to-r from-indigo-800 via-indigo-600 to-indigo-500 bg-clip-text text-transparent tracking-tight mb-2">
+            <h1 className="text-3xl font-extrabold bg-linear-to-r from-indigo-800 via-indigo-600 to-indigo-500 bg-clip-text text-transparent tracking-tight mb-2">
             Wiki Vision
             </h1>
             <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
@@ -105,7 +105,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         {hasNodes && (
           <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in duration-300">
             <Compass className="w-5 h-5 text-indigo-600 animate-spin-slow shrink-0" />
-            <span className="font-bold text-sm bg-gradient-to-r from-indigo-700 to-indigo-500 bg-clip-text text-transparent tracking-tight hidden sm:inline">
+            <span className="font-bold text-sm bg-linear-to-r from-indigo-700 to-indigo-500 bg-clip-text text-transparent tracking-tight hidden sm:inline">
               Wiki MindMap
             </span>
           </div>
