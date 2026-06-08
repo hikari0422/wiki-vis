@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Calendar, Network, Trash2, FolderOpen, Loader2 } from 'lucide-react';
+import { X, Calendar, Network, Trash2, FolderOpen, Loader2, Clock } from 'lucide-react';
 import { getUserSavedGraphs, deleteSavedGraph, type SavedGraph } from '../services/firebase';
 
 interface SavedHistoryModalProps {
@@ -144,10 +144,18 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
                       )}
                     </div>
                     
-                    {/* Timestamp */}
-                    <div className="flex items-center gap-1.5 text-slate-400 mt-1.5">
-                      <Calendar className="w-3.5 h-3.5 shrink-0" />
-                      <span className="text-[10px] font-semibold">{formatDate(graph.createdAt)}</span>
+                    {/* Timestamps */}
+                    <div className="flex flex-col gap-1 mt-2 text-slate-400">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 shrink-0 text-slate-300" />
+                        <span className="text-[10px] font-semibold">建立時間: {formatDate(graph.createdAt)}</span>
+                      </div>
+                      {graph.updatedAt && (
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 shrink-0 text-slate-300" />
+                          <span className="text-[10px] font-semibold">最後修改: {formatDate(graph.updatedAt)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

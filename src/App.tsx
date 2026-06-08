@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { WikiNode, WikiLink } from './types/wiki';
 import {
   parseWikiInput,
@@ -35,22 +35,11 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Warn user on leaving page if there are unsaved changes
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
-        e.preventDefault();
-        e.returnValue = '您有未儲存的變更，確定要離開嗎？';
-        return e.returnValue;
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isDirty]);
-
   // Graph visual states
   const [nodes, setNodes] = useState<WikiNode[]>([]);
   const [links, setLinks] = useState<WikiLink[]>([]);
+  const [limit, setLimit] = useState<number>(5); // Node expansion limit per click
+  const [resetZoomTrigger, setResetZoomTrigger] = useState<number>(0);
   
   // Layout mode state: 'hierarchical' | 'radial'
   const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'radial'>('hierarchical');
@@ -74,6 +63,79 @@ export default function App() {
   const [isMobile, setIsMobile] = useState<boolean>(isInitialMobile);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(!isInitialMobile);
   const [isSubArticlesOpen, setIsSubArticlesOpen] = useState<boolean>(!isInitialMobile);
+
+  // Keep refs of key state variables to read them in the beforeunload listener
+  const stateRef = useRef({ user, nodes, links, expandedNodeIds, layoutMode, limit, isDirty, saveLoading });
+  useEffect(() => {
+    stateRef.current = { user, nodes, links, expandedNodeIds, layoutMode, limit, isDirty, saveLoading };
+  }, [user, nodes, links, expandedNodeIds, layoutMode, limit, isDirty, saveLoading]);
+
+  // Warn user on leaving page if there are unsaved changes and trigger background save
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const state = stateRef.current;
+      
+      // Only warn and save if there's a logged-in user and nodes on board
+      if (state.user && state.nodes.length > 0) {
+        // 1. If saving is currently in progress (manual save or background auto-save)
+        if (state.saveLoading) {
+          e.preventDefault();
+          e.returnValue = '您的圖譜正在上傳儲存中（尚未完成），現在關閉網頁可能會遺失進度！是否確定要離開？';
+          return e.returnValue;
+        }
+
+        // 2. If there are unsaved changes and we haven't started saving yet
+        if (state.isDirty) {
+          const rootNode = state.nodes.find(n => n.isRoot) || state.nodes[0];
+          if (rootNode) {
+            // Trigger saving asynchronously in the background immediately
+            setSaveLoading(true);
+            saveGraphToFirestore({
+              userId: state.user.uid,
+              title: rootNode.id,
+              rootTitle: rootNode.id,
+              nodes: state.nodes.map(n => ({
+                id: n.id,
+                label: n.label,
+                loaded: n.loaded,
+                url: n.url,
+                isRoot: n.isRoot || false,
+                lang: n.lang,
+                variant: n.variant,
+                depth: n.depth,
+                isDeadEnd: n.isDeadEnd || false,
+                fx: n.fx,
+                fy: n.fy,
+                x: n.x,
+                y: n.y
+              })),
+              links: state.links.map(l => {
+                const src = typeof l.source === 'string' ? l.source : l.source.id;
+                const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+                return { source: src, target: tgt };
+              }),
+              expandedNodeIds: Array.from(state.expandedNodeIds),
+              layoutMode: state.layoutMode,
+              limit: state.limit,
+            }).then(() => {
+              setSaveLoading(false);
+              setIsDirty(false);
+            }).catch((err) => {
+              console.error('Autosave on beforeunload failed:', err);
+              setSaveLoading(false);
+            });
+          }
+
+          e.preventDefault();
+          e.returnValue = '偵測到未儲存變更，系統正在進行背景自動存檔，請確認是否關閉網頁？';
+          return e.returnValue;
+        }
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -158,9 +220,6 @@ export default function App() {
     });
   };
 
-  const [limit, setLimit] = useState<number>(5); // Node expansion limit per click
-  const [resetZoomTrigger, setResetZoomTrigger] = useState<number>(0);
-  
   // Custom overlays
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -966,10 +1025,8 @@ export default function App() {
         limit,
       });
       setIsDirty(false);
-      alert('儲存成功！已備份至雲端。');
     } catch (error: any) {
-      console.error(error);
-      alert(error?.message || '儲存失敗，請稍後再試。');
+      console.error('Save graph failed:', error);
     } finally {
       setSaveLoading(false);
     }

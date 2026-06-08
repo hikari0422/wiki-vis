@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, setDoc } from 'firebase/firestore';
 
 // Firebase configuration using Vite environment variables
 const firebaseConfig = {
@@ -49,6 +49,7 @@ export interface SavedGraph {
   layoutMode: 'hierarchical' | 'radial';
   limit: number;
   createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 /**
@@ -70,7 +71,7 @@ export const logout = async () => {
 };
 
 /**
- * Fetch all saved graphs for a user, sorted client-side by creation date desc
+ * Fetch all saved graphs for a user, sorted client-side by creation/update date desc
  */
 export const getUserSavedGraphs = async (userId: string): Promise<SavedGraph[]> => {
   if (!db) return [];
@@ -86,10 +87,10 @@ export const getUserSavedGraphs = async (userId: string): Promise<SavedGraph[]> 
       } as SavedGraph);
     });
     
-    // Sort in memory by createdAt desc to avoid composite index requirements
+    // Sort in memory by updatedAt or createdAt desc
     return graphs.sort((a, b) => {
-      const aTime = a.createdAt?.toMillis() || 0;
-      const bTime = b.createdAt?.toMillis() || 0;
+      const aTime = a.updatedAt?.toMillis() || a.createdAt?.toMillis() || 0;
+      const bTime = b.updatedAt?.toMillis() || b.createdAt?.toMillis() || 0;
       return bTime - aTime;
     });
   } catch (error) {
@@ -99,28 +100,52 @@ export const getUserSavedGraphs = async (userId: string): Promise<SavedGraph[]> 
 };
 
 /**
- * Save current graph to Firestore with a 20 limit constraint
+ * Save current graph to Firestore:
+ * - If user already has a saved graph with the same rootTitle, we OVERWRITE it.
+ * - Otherwise, we check if they already have 20 saves. If yes, throw limit error.
+ * - If not, we create a NEW save.
  */
-export const saveGraphToFirestore = async (graph: Omit<SavedGraph, 'createdAt'>) => {
+export const saveGraphToFirestore = async (graph: Omit<SavedGraph, 'createdAt' | 'updatedAt'>): Promise<{ id: string, operation: 'create' | 'update' }> => {
   if (!db) {
     throw new Error('Firebase Database is not configured.');
   }
 
-  // 1. Enforce 20 limits check
+  // 1. Fetch all existing graphs for the user
   const existing = await getUserSavedGraphs(graph.userId);
-  if (existing.length >= 20) {
-    throw new Error('您已達到 20 個雲端存檔上限，請先至「歷史存檔」中刪除舊的存檔再進行儲存。');
-  }
+
+  // 2. Find if any graph matches the current rootTitle
+  const matchedGraph = existing.find(g => g.rootTitle === graph.rootTitle);
 
   try {
-    // 2. Add document
-    const collRef = collection(db, 'saved_graphs');
-    return await addDoc(collRef, {
-      ...graph,
-      createdAt: Timestamp.now(),
-    });
+    if (matchedGraph && matchedGraph.id) {
+      // Overwrite the existing document
+      const docRef = doc(db, 'saved_graphs', matchedGraph.id);
+      
+      await setDoc(docRef, {
+        ...graph,
+        createdAt: matchedGraph.createdAt || Timestamp.now(), // Preserve original creation time
+        updatedAt: Timestamp.now(), // Update modification time
+      });
+      
+      return { id: matchedGraph.id, operation: 'update' };
+    } else {
+      // New save. Enforce 20 limit check first.
+      if (existing.length >= 20) {
+        throw new Error('您已達到 20 個雲端存檔上限，請先至「歷史存檔」中刪除舊的存檔再進行儲存。');
+      }
+
+      // Add new document
+      const collRef = collection(db, 'saved_graphs');
+      const docRef = await addDoc(collRef, {
+        ...graph,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+      
+      return { id: docRef.id, operation: 'create' };
+    }
   } catch (error) {
-    console.error('Error saving graph:', error);
+    console.error('Error in saveGraphToFirestore:', error);
     throw error;
   }
 };

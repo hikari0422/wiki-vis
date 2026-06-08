@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Search, Home, Trash2, Sliders, BarChart3, Globe, Network, Compass, History, Layers, MoreVertical, Cloud } from 'lucide-react';
 
 interface ControlPanelProps {
@@ -50,16 +50,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [lang, setLang] = useState<string>('zh');
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showMobileToolbar, setShowMobileToolbar] = useState<boolean>(false);
-  const [customTitle, setCustomTitle] = useState<string>('');
-
-  // Sync custom title with rootTitle when rootTitle changes
-  useEffect(() => {
-    if (rootTitle) {
-      setCustomTitle(rootTitle);
-    } else {
-      setCustomTitle('');
-    }
-  }, [rootTitle]);
 
   const handleLangChange = (newLang: string) => {
     setLang(newLang);
@@ -420,9 +410,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 雲端備份存檔
               </span>
               {isLoggedIn && isDirty && hasNodes && (
-                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md animate-pulse">
+                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md animate-pulse" title="離頁或關閉分頁時將自動儲存變更">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  未儲存變更
+                  未儲存變更 (關閉時自動儲存)
                 </span>
               )}
               {isLoggedIn && !isDirty && hasNodes && (
@@ -441,24 +431,21 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 請先搜尋並建立圖譜後再進行儲存。
               </div>
             ) : (
-              <div className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  value={customTitle}
-                  onChange={(e) => setCustomTitle(e.target.value)}
-                  placeholder="自訂存檔標題..."
-                  className="flex-1 min-w-0 text-xs bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all font-semibold text-slate-700"
-                />
+              <div className="flex justify-between items-center gap-4 bg-slate-50/50 border border-slate-200/40 rounded-2xl p-2.5">
+                <div className="min-w-0">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase">圖譜主題</div>
+                  <div className="text-xs font-extrabold text-slate-700 truncate">{rootTitle}</div>
+                </div>
                 <button
                   type="button"
-                  onClick={() => onSaveGraph(customTitle.trim() || rootTitle)}
+                  onClick={() => onSaveGraph(rootTitle)}
                   disabled={saveLoading}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 shadow-sm"
+                  className="py-1.5 px-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 shadow-sm flex items-center justify-center min-w-[70px]"
                 >
                   {saveLoading ? (
                     <span className="w-3.5 h-3.5 block border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   ) : (
-                    '儲存'
+                    '手動儲存'
                   )}
                 </button>
               </div>
