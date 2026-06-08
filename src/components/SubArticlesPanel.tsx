@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Layers, Search, Plus } from 'lucide-react';
 import type { WikiNode } from '../types/wiki';
 
@@ -7,6 +7,7 @@ interface SubArticlesPanelProps {
   allSubArticles: string[];
   visibleNodeIds: Set<string>;
   onAddSubArticle: (title: string) => void;
+  isOpen: boolean;
 }
 
 export const SubArticlesPanel: React.FC<SubArticlesPanelProps> = ({
@@ -14,17 +15,12 @@ export const SubArticlesPanel: React.FC<SubArticlesPanelProps> = ({
   allSubArticles,
   visibleNodeIds,
   onAddSubArticle,
+  isOpen,
 }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedValue, setSelectedValue] = useState<string>('');
 
-  // Reset query and selection whenever the selected node changes
-  useEffect(() => {
-    setSearchQuery('');
-    setSelectedValue('');
-  }, [selectedNode?.id]);
-
-  if (!selectedNode || allSubArticles.length === 0) return null;
+  if (!isOpen || !selectedNode || allSubArticles.length === 0) return null;
 
   // Filter out sub-articles that are already displayed on the whiteboard
   const hiddenSubArticles = allSubArticles.filter((title) => !visibleNodeIds.has(title));
@@ -48,7 +44,7 @@ export const SubArticlesPanel: React.FC<SubArticlesPanelProps> = ({
   };
 
   return (
-    <div className="fixed left-4 top-[55%] -translate-y-1/2 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-4 flex flex-col gap-3 w-52 md:w-60 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-left-5 fade-in duration-500">
+    <div className="fixed top-20 left-4 right-4 w-auto max-h-[45vh] -translate-y-0 md:top-[55%] md:left-4 md:right-auto md:w-60 md:-translate-y-1/2 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-4 flex flex-col gap-3 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in duration-300">
       {/* Header Title */}
       <div className="flex items-center gap-1.5 border-b border-slate-100 pb-2 select-none">
         <Layers className="w-4 h-4 text-indigo-500" />

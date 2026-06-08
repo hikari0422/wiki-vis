@@ -213,7 +213,7 @@ export async function fetchWikiLinks(
         if (!linkTitle) {
           try {
             linkTitle = decodeURIComponent(hrefMatch[2]).replace(/_/g, ' ');
-          } catch (e) {
+          } catch {
             return; // Skip if URL decoding fails
           }
         }

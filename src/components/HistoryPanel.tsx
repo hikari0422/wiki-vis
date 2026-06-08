@@ -6,17 +6,19 @@ interface HistoryPanelProps {
   history: WikiNode[];
   selectedNode: WikiNode | null;
   onNodeClick: (node: WikiNode) => void;
+  isOpen: boolean;
 }
 
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   history,
   selectedNode,
   onNodeClick,
+  isOpen,
 }) => {
-  if (history.length === 0) return null;
+  if (!isOpen || history.length === 0) return null;
 
   return (
-    <div className="fixed top-24 left-4 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-3 flex flex-col gap-2.5 w-44 md:w-52 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-left-5 fade-in duration-500">
+    <div className="fixed top-20 left-4 right-4 w-auto max-h-[40vh] md:top-24 md:left-4 md:right-auto md:w-52 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-3 flex flex-col gap-2.5 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in duration-300">
       {/* Panel Title Header */}
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
         <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 select-none">

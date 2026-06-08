@@ -38,6 +38,45 @@ export default function App() {
   const [focusRootTrigger, setFocusRootTrigger] = useState<number>(0);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
 
+  // RWD Mobile Detection & Panel states
+  const isInitialMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  const [isMobile, setIsMobile] = useState<boolean>(isInitialMobile);
+  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(!isInitialMobile);
+  const [isSubArticlesOpen, setIsSubArticlesOpen] = useState<boolean>(!isInitialMobile);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+    };
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+
+
+  const toggleHistory = () => {
+    setIsHistoryOpen((prev) => {
+      const next = !prev;
+      if (next && isMobile) {
+        setIsSubArticlesOpen(false);
+        setIsSidebarOpen(false);
+      }
+      return next;
+    });
+  };
+
+  const toggleSubArticles = () => {
+    setIsSubArticlesOpen((prev) => {
+      const next = !prev;
+      if (next && isMobile) {
+        setIsHistoryOpen(false);
+        setIsSidebarOpen(false);
+      }
+      return next;
+    });
+  };
+
   // Helper to add nodes to the click history (unique FIFO queue capped at 10 items)
   const addToHistory = (node: WikiNode) => {
     setClickHistory((prev) => {
@@ -59,6 +98,11 @@ export default function App() {
     setContextMenu(null);
     setDeepestActiveId(node.id);
     addToHistory(node);
+
+    if (isMobile) {
+      setIsHistoryOpen(false);
+      setIsSubArticlesOpen(false);
+    }
 
     if (!node.loaded && !node.loading && !node.isDeadEnd) {
       handleExplore(node);
@@ -104,6 +148,11 @@ export default function App() {
     setSelectedNode(null);
     setIsSidebarOpen(false);
     setExpandedNodeIds(new Set());
+    
+    if (isMobile) {
+      setIsHistoryOpen(false);
+      setIsSubArticlesOpen(false);
+    }
     
     try {
       // 1. Parse inputs to determine title and language code
@@ -344,6 +393,10 @@ export default function App() {
     setSelectedNode(newNode);
     setDeepestActiveId(newNode.id);
     setIsSidebarOpen(true);
+    if (isMobile) {
+      setIsHistoryOpen(false);
+      setIsSubArticlesOpen(false);
+    }
 
     // Auto explore the newly spawned child
     setTimeout(() => {
@@ -511,6 +564,10 @@ export default function App() {
   const handleSetRoot = async (node: WikiNode) => {
     setSelectedNode(null);
     setIsSidebarOpen(true);
+    if (isMobile) {
+      setIsHistoryOpen(false);
+      setIsSubArticlesOpen(false);
+    }
     setContextMenu(null);
     setExpandedNodeIds(new Set());
     
@@ -599,6 +656,7 @@ export default function App() {
     const targetChildrenSet = new Set(targetChildren);
     const allChildrenSet = new Set(allChildren);
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNodes((prevNodes) => {
       // Keep nodes that are either NOT children of selectedNode OR are in the targetChildren slice
       const otherNodes = prevNodes.filter((n) => {
@@ -840,6 +898,10 @@ export default function App() {
             setSelectedNode(null);
             setDeepestActiveId(null);
             setIsSidebarOpen(false);
+            if (isMobile) {
+              setIsHistoryOpen(false);
+              setIsSubArticlesOpen(false);
+            }
           }}
           onNodeRightClick={handleNodeRightClick}
           onMarkDeadEnd={handleMarkDeadEnd}
@@ -861,14 +923,17 @@ export default function App() {
         history={clickHistory}
         selectedNode={selectedNode}
         onNodeClick={handleNodeClick}
+        isOpen={isHistoryOpen}
       />
 
       {/* Search & Dropdown Filter Panel for nodes with >50 sub-articles */}
       <SubArticlesPanel
+        key={selectedNode ? selectedNode.id : 'empty'}
         selectedNode={selectedNode}
         allSubArticles={selectedNode ? (exploredLinksMap[selectedNode.id] || []) : []}
         visibleNodeIds={new Set(nodes.map(n => n.id))}
         onAddSubArticle={handleAddSubArticle}
+        isOpen={isSubArticlesOpen}
       />
 
       {/* 2. Floating Dashboard Search & Controls Layer */}
@@ -882,6 +947,12 @@ export default function App() {
         onLimitChange={setLimit}
         searchLoading={searchLoading}
         hasNodes={nodes.length > 0}
+        isHistoryOpen={isHistoryOpen}
+        onToggleHistory={toggleHistory}
+        showHistoryButton={clickHistory.length > 0}
+        isSubArticlesOpen={isSubArticlesOpen}
+        onToggleSubArticles={toggleSubArticles}
+        showSubArticlesButton={selectedNode !== null && (exploredLinksMap[selectedNode.id] || []).length > 0}
       />
 
       {/* 3. Sliding Detail Reader Panel */}
@@ -915,7 +986,7 @@ export default function App() {
 
       {/* 5. Floating Layout & Camera Selector at the bottom-left corner */}
       {nodes.length > 0 && (
-        <div className="fixed bottom-4 left-4 z-30 bg-white/80 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-2 flex flex-col gap-2 pointer-events-auto transition-all hover:shadow-xl duration-300 max-w-xs">
+        <div className="fixed bottom-20 left-4 md:bottom-4 md:left-4 z-30 bg-white/80 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-2 flex flex-col gap-2 pointer-events-auto transition-all hover:shadow-xl duration-300 max-w-xs">
           
           {/* Layout Actions Row */}
           <div className="flex gap-1">
@@ -993,7 +1064,13 @@ export default function App() {
       {/* Floating Sidebar Toggle Button (shown only when selectedNode is set but sidebar is closed) */}
       {selectedNode && !isSidebarOpen && (
         <button
-          onClick={() => setIsSidebarOpen(true)}
+          onClick={() => {
+            setIsSidebarOpen(true);
+            if (isMobile) {
+              setIsHistoryOpen(false);
+              setIsSubArticlesOpen(false);
+            }
+          }}
           className="fixed right-6 top-1/2 -translate-y-1/2 z-30 p-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 cursor-pointer transition-all duration-300 flex items-center justify-center border border-indigo-500/20"
           title="開啟詳細資訊面板"
         >

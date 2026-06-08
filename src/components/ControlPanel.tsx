@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Home, Trash2, Sliders, BarChart3, Globe, Network, Compass } from 'lucide-react';
+import { Search, Home, Trash2, Sliders, BarChart3, Globe, Network, Compass, History, Layers, MoreVertical } from 'lucide-react';
 
 interface ControlPanelProps {
   onSearch: (input: string, lang: string) => void;
@@ -11,6 +11,12 @@ interface ControlPanelProps {
   onLimitChange: (limit: number) => void;
   searchLoading: boolean;
   hasNodes: boolean;
+  isHistoryOpen: boolean;
+  onToggleHistory: () => void;
+  showHistoryButton: boolean;
+  isSubArticlesOpen: boolean;
+  onToggleSubArticles: () => void;
+  showSubArticlesButton: boolean;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -23,10 +29,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onLimitChange,
   searchLoading,
   hasNodes,
+  isHistoryOpen,
+  onToggleHistory,
+  showHistoryButton,
+  isSubArticlesOpen,
+  onToggleSubArticles,
+  showSubArticlesButton,
 }) => {
   const [input, setInput] = useState<string>('');
   const [lang, setLang] = useState<string>('zh');
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [showMobileToolbar, setShowMobileToolbar] = useState<boolean>(false);
 
   const handleLangChange = (newLang: string) => {
     setLang(newLang);
@@ -66,7 +79,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     : "w-full bg-white/80 backdrop-blur-2xl border border-slate-200/60 rounded-3xl shadow-2xl p-6 flex flex-col items-center gap-5 pointer-events-auto transition-all duration-700 ease-in-out";
 
   const formClasses = hasNodes
-    ? "flex-1 min-w-[240px] flex items-center gap-2 bg-slate-100/80 rounded-xl px-3 py-1.5 border border-slate-200/20 focus-within:border-indigo-500/30 focus-within:bg-white focus-within:shadow-inner transition-all duration-300"
+    ? "flex-1 min-w-0 md:min-w-[240px] flex items-center gap-2 bg-slate-100/80 rounded-xl px-3 py-1.5 border border-slate-200/20 focus-within:border-indigo-500/30 focus-within:bg-white focus-within:shadow-inner transition-all duration-300"
     : "w-full max-w-xl flex items-center gap-3 bg-slate-50 border border-slate-200/60 rounded-2xl px-4 py-3 focus-within:border-indigo-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-100/50 focus-within:shadow-inner transition-all duration-300";
 
   return (
@@ -90,9 +103,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
         {/* Brand/Title Inline (Shown only when top floating) */}
         {hasNodes && (
-          <div className="flex items-center gap-2 px-2 shrink-0 animate-in fade-in duration-300">
-            <Compass className="w-6 h-6 text-indigo-600 animate-spin-slow" />
-            <span className="font-bold text-sm bg-gradient-to-r from-indigo-700 to-indigo-500 bg-clip-text text-transparent tracking-tight">
+          <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in duration-300">
+            <Compass className="w-5 h-5 text-indigo-600 animate-spin-slow shrink-0" />
+            <span className="font-bold text-sm bg-gradient-to-r from-indigo-700 to-indigo-500 bg-clip-text text-transparent tracking-tight hidden sm:inline">
               Wiki MindMap
             </span>
           </div>
@@ -143,7 +156,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
         {/* Toolbar Buttons (Shown only when top floating) */}
         {hasNodes && (
-          <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in duration-300">
+          <div className="hidden md:flex items-center gap-1 shrink-0 animate-in fade-in duration-300">
             
             {/* Reset Zoom */}
             <button
@@ -152,8 +165,40 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               title="重設視角"
               aria-label="Reset View"
             >
-              <Home className="w-4.5 h-4.5" />
+              <Home className="w-4 h-4" />
             </button>
+
+            {/* History Panel Toggle */}
+            {showHistoryButton && (
+              <button
+                onClick={onToggleHistory}
+                className={`p-2 rounded-xl transition-all active:scale-95 border border-slate-200/10 cursor-pointer ${
+                  isHistoryOpen
+                    ? 'text-indigo-600 bg-indigo-50 border-indigo-200/30'
+                    : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50'
+                }`}
+                title="探索歷史軌跡"
+                aria-label="Toggle History"
+              >
+                <History className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Sub-articles Panel Toggle */}
+            {showSubArticlesButton && (
+              <button
+                onClick={onToggleSubArticles}
+                className={`p-2 rounded-xl transition-all active:scale-95 border border-slate-200/10 cursor-pointer ${
+                  isSubArticlesOpen
+                    ? 'text-indigo-600 bg-indigo-50 border-indigo-200/30'
+                    : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50'
+                }`}
+                title="未顯示關聯條目"
+                aria-label="Toggle Sub Articles"
+              >
+                <Layers className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Settings Toggle */}
             <button
@@ -166,7 +211,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               title="物理配置與統計"
               aria-label="Toggle Settings"
             >
-              <Sliders className="w-4.5 h-4.5" />
+              <Sliders className="w-4 h-4" />
             </button>
 
             {/* Clear Board */}
@@ -177,9 +222,26 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               title="清除畫布"
               aria-label="Clear Board"
             >
-              <Trash2 className="w-4.5 h-4.5" />
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
+        )}
+
+        {/* Mobile Toolbar Toggle Button */}
+        {hasNodes && (
+          <button
+            type="button"
+            onClick={() => setShowMobileToolbar(!showMobileToolbar)}
+            className={`p-2 rounded-xl border border-slate-200/10 cursor-pointer md:hidden transition-all active:scale-95 shrink-0 ${
+              showMobileToolbar 
+                ? 'text-indigo-600 bg-indigo-50 border-indigo-200/30' 
+                : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50'
+            }`}
+            title="更多功能選項"
+            aria-label="Toggle Mobile Toolbar"
+          >
+            <MoreVertical className="w-4.5 h-4.5" />
+          </button>
         )}
 
         {/* Quick Start Suggestions (Centered only) */}
@@ -203,6 +265,79 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* Mobile Secondary Expandable Toolbar */}
+      {hasNodes && showMobileToolbar && (
+        <div className="w-full bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-2.5 flex justify-around items-center gap-1 pointer-events-auto md:hidden animate-in slide-in-from-top-2 duration-150">
+          
+          {/* Reset View */}
+          <button
+            onClick={onResetView}
+            className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-95 border border-slate-200/10 cursor-pointer flex-1 flex justify-center"
+            title="重設視角"
+            aria-label="Reset View"
+          >
+            <Home className="w-4.5 h-4.5" />
+          </button>
+
+          {/* History Panel Toggle */}
+          {showHistoryButton && (
+            <button
+              onClick={onToggleHistory}
+              className={`p-2 rounded-xl transition-all active:scale-95 border border-slate-200/10 cursor-pointer flex-1 flex justify-center ${
+                isHistoryOpen
+                  ? 'text-indigo-600 bg-indigo-50 border-indigo-200/30'
+                  : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50'
+              }`}
+              title="探索歷史軌跡"
+              aria-label="Toggle History"
+            >
+              <History className="w-4.5 h-4.5" />
+            </button>
+          )}
+
+          {/* Sub-articles Panel Toggle */}
+          {showSubArticlesButton && (
+            <button
+              onClick={onToggleSubArticles}
+              className={`p-2 rounded-xl transition-all active:scale-95 border border-slate-200/10 cursor-pointer flex-1 flex justify-center ${
+                isSubArticlesOpen
+                  ? 'text-indigo-600 bg-indigo-50 border-indigo-200/30'
+                  : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50'
+              }`}
+              title="未顯示關聯條目"
+              aria-label="Toggle Sub Articles"
+            >
+              <Layers className="w-4.5 h-4.5" />
+            </button>
+          )}
+
+          {/* Settings Toggle */}
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`p-2 rounded-xl transition-all active:scale-95 border border-slate-200/10 cursor-pointer flex-1 flex justify-center ${
+              showSettings 
+                ? 'text-indigo-600 bg-indigo-50 border-indigo-200/30' 
+                : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50'
+            }`}
+            title="物理配置與統計"
+            aria-label="Toggle Settings"
+          >
+            <Sliders className="w-4.5 h-4.5" />
+          </button>
+
+          {/* Clear Board */}
+          <button
+            onClick={onClearBoard}
+            disabled={nodeCount === 0}
+            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400 rounded-xl transition-all active:scale-95 cursor-pointer flex-1 flex justify-center"
+            title="清除畫布"
+            aria-label="Clear Board"
+          >
+            <Trash2 className="w-4.5 h-4.5" />
+          </button>
+        </div>
+      )}
 
       {/* Sub Settings & Stats Drawer */}
       {showSettings && (
@@ -258,7 +393,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
 
           {/* Real-time stats block */}
-          <div className="flex items-center gap-6 md:border-l md:border-slate-200/50 md:pl-6 shrink-0">
+          <div className="flex flex-wrap items-center gap-4 border-t border-slate-100 pt-3 mt-1 md:border-t-0 md:pt-0 md:mt-0 md:border-l md:border-slate-200/50 md:pl-6 shrink-0">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-slate-400" />
               <span className="text-xs font-semibold text-slate-400">目前看板資訊:</span>

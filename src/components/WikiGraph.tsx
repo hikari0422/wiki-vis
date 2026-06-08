@@ -58,6 +58,11 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
 
   // Debounced node hover listener (350ms to prevent Wikipedia API spamming)
   const handleNodeMouseEnter = (node: WikiNode, e: React.MouseEvent) => {
+    // Disable hover previews on touch devices to avoid interference with clicks
+    if (window.matchMedia && !window.matchMedia('(hover: hover)').matches) {
+      return;
+    }
+
     if (hoverTimeoutRef.current) {
       window.clearTimeout(hoverTimeoutRef.current);
     }
@@ -180,13 +185,23 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
 
     const targetScale = 1.15; // Slightly zoomed in for detail focus
 
+    // Shift focus center so focused node is not hidden under panels
+    const isMobileViewport = width < 768;
+    let centerX = width / 2;
+    let centerY = height / 2;
+    if (isMobileViewport) {
+      centerY = height * 0.22;
+    } else {
+      centerX = width * 0.35;
+    }
+
     svg.transition()
       .duration(800)
       .ease(d3.easeCubicInOut)
       .call(
         zoom.transform,
         d3.zoomIdentity
-          .translate(width / 2 - activeNode.x * targetScale, height / 2 - activeNode.y * targetScale)
+          .translate(centerX - activeNode.x * targetScale, centerY - activeNode.y * targetScale)
           .scale(targetScale)
       );
   }, [selectedNode?.id, selectedNode?.loaded]);
@@ -207,13 +222,23 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     const h = container.clientHeight;
     const targetScale = 1.25; // Slightly zoomed in for detail focus
 
+    // Shift focus center so focused node is not hidden under panels
+    const isMobileViewport = w < 768;
+    let centerX = w / 2;
+    let centerY = h / 2;
+    if (isMobileViewport) {
+      centerY = h * 0.22;
+    } else {
+      centerX = w * 0.35;
+    }
+
     svg.transition()
       .duration(750)
       .ease(d3.easeCubicInOut)
       .call(
         zoom.transform,
         d3.zoomIdentity
-          .translate(w / 2 - activeNode.x * targetScale, h / 2 - activeNode.y * targetScale)
+          .translate(centerX - activeNode.x * targetScale, centerY - activeNode.y * targetScale)
           .scale(targetScale)
       );
   }, [focusSelectedTrigger]);
@@ -234,13 +259,25 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     const h = container.clientHeight;
     const targetScale = 1.0; // Standard root focus scale
 
+    // Shift focus center if details panel is open so root is visible
+    const isMobileViewport = w < 768;
+    let centerX = w / 2;
+    let centerY = h / 2;
+    if (selectedNode) {
+      if (isMobileViewport) {
+        centerY = h * 0.22;
+      } else {
+        centerX = w * 0.35;
+      }
+    }
+
     svg.transition()
       .duration(750)
       .ease(d3.easeCubicInOut)
       .call(
         zoom.transform,
         d3.zoomIdentity
-          .translate(w / 2 - rootNode.x * targetScale, h / 2 - rootNode.y * targetScale)
+          .translate(centerX - rootNode.x * targetScale, centerY - rootNode.y * targetScale)
           .scale(targetScale)
       );
   }, [focusRootTrigger]);
@@ -539,31 +576,31 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
   }, [nodes, links, layoutMode]);
 
   // Truncates labels that exceed 14 characters and adds ellipsis
-  const formatLabel = (label: string | undefined | null): string => {
+  function formatLabel(label: string | undefined | null): string {
     if (!label) return '';
     return label.length > 15 ? `${label.slice(0, 14)}...` : label;
-  };
+  }
 
   // Simple deterministic hash of a string to a float in [0, 1)
-  const getDeterministicRandom = (str: string): number => {
+  function getDeterministicRandom(str: string): number {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
     return Math.abs((Math.sin(hash) * 10000) % 1);
-  };
+  }
 
   // Dynamically query random vertical radius (ry) for a node
-  const getNodeRadiusY = (node: WikiNode | undefined | null): number => {
+  function getNodeRadiusY(node: WikiNode | undefined | null): number {
     if (!node) return 34;
     const rand = getDeterministicRandom(node.id);
     // Randomize vertical radius between 26 and 42 deterministically
     return Math.round(26 + rand * 16);
-  };
+  }
 
   // Calculates the horizontal radius of the ellipse based on the formatted label length,
   // giving extra weight to full-width characters (like Chinese) to ensure the text fits perfectly.
-  const getEllipseRadiusX = (label: string | undefined | null): number => {
+  function getEllipseRadiusX(label: string | undefined | null): number {
     if (!label) return 48;
     const formatted = formatLabel(label);
     let length = 0;
@@ -576,20 +613,20 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       }
     }
     return Math.max(48, length * 5.5 + 18);
-  };
+  }
 
   // Dynamically query random horizontal radius (rx) for a node
-  const getNodeRadiusX = (node: WikiNode | undefined | null): number => {
+  function getNodeRadiusX(node: WikiNode | undefined | null): number {
     if (!node) return 48;
     const baseRx = getEllipseRadiusX(node.label);
     const rand = getDeterministicRandom(node.id);
     // Random scale between 0.85 and 1.25 deterministically
     const randomScale = 0.85 + rand * 0.40;
     return Math.round(baseRx * randomScale);
-  };
+  }
 
   // Helper to calculate link path data (d attribute) dynamically
-  const getLinkPath = (link: WikiLink): string => {
+  function getLinkPath(link: WikiLink): string {
     // Resolve source and target to the actual WikiNode objects from the nodes array if they are strings
     const source = typeof link.source === 'string' 
       ? nodes.find(n => n.id === link.source) 
@@ -661,10 +698,10 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
         return `M ${startX} ${startY} L ${endX} ${endY}`;
       }
     }
-  };
+  }
 
   // Helper to determine node visual classes
-  const getNodeClasses = (node: WikiNode) => {
+  function getNodeClasses(node: WikiNode): string {
     const isSelected = selectedNode?.id === node.id;
     
     let base = 'node-interactive cursor-pointer select-none ';
@@ -691,7 +728,8 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     }
 
     return base;
-  };
+  }
+
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-grid-whiteboard">

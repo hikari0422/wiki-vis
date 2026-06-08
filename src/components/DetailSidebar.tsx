@@ -139,17 +139,23 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
 
   return (
     <div
-      className={`fixed top-4 right-4 bottom-4 w-80 md:w-96 bg-white/85 backdrop-blur-2xl border border-slate-200/60 rounded-3xl shadow-2xl z-40 transition-all duration-300 ease-out ${
-        isOpen ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-12 opacity-0 scale-95 pointer-events-none'
-      }`}
+      className={`fixed z-40 bg-white/85 backdrop-blur-2xl border-slate-200/60 shadow-2xl transition-all duration-300 ease-out
+        bottom-0 left-0 right-0 top-auto w-full h-[60vh] rounded-t-3xl rounded-b-none border-t border-l-0 border-r-0 border-b-0
+        md:top-4 md:right-4 md:bottom-4 md:left-auto md:w-96 md:h-auto md:rounded-3xl md:border
+        ${isOpen 
+          ? 'translate-y-0 md:translate-x-0 opacity-100 scale-100' 
+          : 'translate-y-full md:translate-x-12 md:translate-y-0 opacity-0 pointer-events-none md:scale-95'
+        }`}
     >
       {/* Sidebar Container */}
-      <div className="flex flex-col h-full relative pt-16 pb-6 px-6">
+      <div className="flex flex-col h-full relative pt-8 md:pt-16 pb-6 px-6 overflow-hidden">
+        {/* Mobile bottom sheet drag handle */}
+        <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 shrink-0 md:hidden" />
         
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+          className="absolute top-2 right-4 md:top-4 md:right-4 text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
           aria-label="Close details"
         >
           <X className="w-5 h-5" />
@@ -214,10 +220,9 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Action Panel (Sticky at bottom) */}
-        <div className="border-t border-slate-100 pt-4 flex flex-col gap-2 shrink-0">
+          {/* Action Panel (Moved inside scrollable content) */}
+          <div className="border-t border-slate-100 pt-4 flex flex-col gap-2 mt-5">
           
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/50 transition-all duration-300">
             <div className="flex items-center gap-2.5">
@@ -298,5 +303,6 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
         </div>
       </div>
     </div>
+  </div>
   );
 };
