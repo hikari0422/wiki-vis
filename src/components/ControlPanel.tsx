@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Home, Trash2, Sliders, BarChart3, Globe, Network, Compass, History, Layers, MoreVertical } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Home, Trash2, Sliders, BarChart3, Globe, Network, Compass, History, Layers, MoreVertical, Cloud } from 'lucide-react';
 
 interface ControlPanelProps {
   onSearch: (input: string, lang: string) => void;
@@ -17,6 +17,11 @@ interface ControlPanelProps {
   isSubArticlesOpen: boolean;
   onToggleSubArticles: () => void;
   showSubArticlesButton: boolean;
+  isLoggedIn: boolean;
+  isDirty: boolean;
+  onSaveGraph: (title: string) => void;
+  saveLoading: boolean;
+  rootTitle: string;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -35,11 +40,26 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   isSubArticlesOpen,
   onToggleSubArticles,
   showSubArticlesButton,
+  isLoggedIn,
+  isDirty,
+  onSaveGraph,
+  saveLoading,
+  rootTitle,
 }) => {
   const [input, setInput] = useState<string>('');
   const [lang, setLang] = useState<string>('zh');
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showMobileToolbar, setShowMobileToolbar] = useState<boolean>(false);
+  const [customTitle, setCustomTitle] = useState<string>('');
+
+  // Sync custom title with rootTitle when rootTitle changes
+  useEffect(() => {
+    if (rootTitle) {
+      setCustomTitle(rootTitle);
+    } else {
+      setCustomTitle('');
+    }
+  }, [rootTitle]);
 
   const handleLangChange = (newLang: string) => {
     setLang(newLang);
@@ -390,6 +410,59 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Cloud Saving block */}
+          <div className="flex-1 flex flex-col gap-2 max-w-sm border-t border-slate-100 pt-3 md:border-t-0 md:pt-0 md:border-l md:border-slate-200/50 md:pl-6">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <Cloud className="w-3.5 h-3.5 text-indigo-500" />
+                雲端備份存檔
+              </span>
+              {isLoggedIn && isDirty && hasNodes && (
+                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  未儲存變更
+                </span>
+              )}
+              {isLoggedIn && !isDirty && hasNodes && (
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                  已儲存至雲端
+                </span>
+              )}
+            </div>
+
+            {!isLoggedIn ? (
+              <div className="text-[11px] font-semibold text-slate-400 py-2">
+                請先在右上角登入 Google 帳戶以使用雲端存檔功能。
+              </div>
+            ) : !hasNodes ? (
+              <div className="text-[11px] font-semibold text-slate-400 py-2">
+                請先搜尋並建立圖譜後再進行儲存。
+              </div>
+            ) : (
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={customTitle}
+                  onChange={(e) => setCustomTitle(e.target.value)}
+                  placeholder="自訂存檔標題..."
+                  className="flex-1 min-w-0 text-xs bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all font-semibold text-slate-700"
+                />
+                <button
+                  type="button"
+                  onClick={() => onSaveGraph(customTitle.trim() || rootTitle)}
+                  disabled={saveLoading}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 shadow-sm"
+                >
+                  {saveLoading ? (
+                    <span className="w-3.5 h-3.5 block border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    '儲存'
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Real-time stats block */}

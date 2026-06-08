@@ -15,8 +15,39 @@ import { Compass, Layers, Share2, Info } from 'lucide-react';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SubArticlesPanel } from './components/SubArticlesPanel';
 import { PathTimeline } from './components/PathTimeline';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { auth, saveGraphToFirestore, type SavedGraph } from './services/firebase';
+import { UserAuth } from './components/UserAuth';
 
 export default function App() {
+  // Auth state
+  const [user, setUser] = useState<User | null>(null);
+
+  // Save/Unsaved states
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [saveLoading, setSaveLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!auth) return;
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Warn user on leaving page if there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '您有未儲存的變更，確定要離開嗎？';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
   // Graph visual states
   const [nodes, setNodes] = useState<WikiNode[]>([]);
   const [links, setLinks] = useState<WikiLink[]>([]);
@@ -196,6 +227,7 @@ export default function App() {
       
       // Auto reset zoom back to center
       setResetZoomTrigger((prev) => prev + 1);
+      setIsDirty(true);
 
     } catch (error) {
       console.error(error);
@@ -338,6 +370,7 @@ export default function App() {
         return [...prevLinks, ...newLinksToAdd];
       });
 
+      setIsDirty(true);
     } catch (error) {
       console.error(error);
       // Revert loading state
@@ -397,6 +430,8 @@ export default function App() {
       setIsHistoryOpen(false);
       setIsSubArticlesOpen(false);
     }
+
+    setIsDirty(true);
 
     // Auto explore the newly spawned child
     setTimeout(() => {
@@ -546,6 +581,7 @@ export default function App() {
         return [...prevLinks, ...newLinksToAdd];
       });
 
+      setIsDirty(true);
     } catch (error) {
       console.error(error);
       // Revert loading state
@@ -587,6 +623,8 @@ export default function App() {
     setClickHistory([nextRoot]);
     setResetZoomTrigger((prev) => prev + 1);
 
+    setIsDirty(true);
+
     // Auto trigger expand on the new root
     setTimeout(() => {
       handleExplore(nextRoot);
@@ -619,6 +657,7 @@ export default function App() {
       return next;
     });
 
+    setIsDirty(true);
   };
 
   /**
@@ -643,6 +682,7 @@ export default function App() {
     setIsSidebarOpen(false);
     setContextMenu(null);
     setClickHistory([]);
+    setIsDirty(false);
   };
 
   // 5. Watch for branch limit changes to dynamically update visible sublinks instantly!
@@ -884,8 +924,95 @@ export default function App() {
     return pathList;
   };
 
+  const handleSaveGraph = async (title: string) => {
+    if (!user) {
+      alert('請先登入帳戶！');
+      return;
+    }
+    const rootNode = nodes.find(n => n.isRoot);
+    if (!rootNode) {
+      alert('看板為空，無法儲存。');
+      return;
+    }
+    
+    setSaveLoading(true);
+    try {
+      await saveGraphToFirestore({
+        userId: user.uid,
+        title: title || rootNode.id,
+        rootTitle: rootNode.id,
+        nodes: nodes.map(n => ({
+          id: n.id,
+          label: n.label,
+          loaded: n.loaded,
+          url: n.url,
+          isRoot: n.isRoot || false,
+          lang: n.lang,
+          variant: n.variant,
+          depth: n.depth,
+          isDeadEnd: n.isDeadEnd || false,
+          fx: n.fx,
+          fy: n.fy,
+          x: n.x,
+          y: n.y
+        })),
+        links: links.map(l => {
+          const src = typeof l.source === 'string' ? l.source : l.source.id;
+          const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+          return { source: src, target: tgt };
+        }),
+        expandedNodeIds: Array.from(expandedNodeIds),
+        layoutMode,
+        limit,
+      });
+      setIsDirty(false);
+      alert('儲存成功！已備份至雲端。');
+    } catch (error: any) {
+      console.error(error);
+      alert(error?.message || '儲存失敗，請稍後再試。');
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleLoadGraph = (savedGraph: SavedGraph) => {
+    // Reconstruct nodes
+    const loadedNodes: WikiNode[] = savedGraph.nodes.map(n => ({
+      ...n,
+    }));
+    
+    // Reconstruct links
+    const loadedLinks: WikiLink[] = savedGraph.links.map(l => ({
+      source: l.source,
+      target: l.target
+    }));
+
+    // Update state
+    setNodes(loadedNodes);
+    setLinks(loadedLinks);
+    setExpandedNodeIds(new Set(savedGraph.expandedNodeIds));
+    setLayoutMode(savedGraph.layoutMode);
+    setLimit(savedGraph.limit);
+    
+    // Set selectedNode to the root node of the loaded graph
+    const rootNode = loadedNodes.find(n => n.isRoot) || loadedNodes[0];
+    if (rootNode) {
+      setSelectedNode(rootNode);
+      setDeepestActiveId(rootNode.id);
+      addToHistory(rootNode);
+    }
+
+    // Reset zoom back to center
+    setResetZoomTrigger((prev) => prev + 1);
+    
+    // Clear dirty state since it matches cloud perfectly
+    setIsDirty(false);
+  };
+
   return (
     <main className="w-full h-full relative overflow-hidden bg-slate-50">
+      {/* Google Authentication Button/Dropdown */}
+      <UserAuth user={user} onLoadGraph={handleLoadGraph} />
       
       {/* 1. Core Force-Directed Canvas Layer */}
       {nodes.length > 0 ? (
@@ -953,6 +1080,11 @@ export default function App() {
         isSubArticlesOpen={isSubArticlesOpen}
         onToggleSubArticles={toggleSubArticles}
         showSubArticlesButton={selectedNode !== null && (exploredLinksMap[selectedNode.id] || []).length > 0}
+        isLoggedIn={!!user}
+        isDirty={isDirty}
+        onSaveGraph={handleSaveGraph}
+        saveLoading={saveLoading}
+        rootTitle={(nodes.find(n => n.isRoot) || nodes[0])?.id || ''}
       />
 
       {/* 3. Sliding Detail Reader Panel */}
