@@ -1,1089 +1,85 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { WikiNode, WikiLink } from './types/wiki';
-import {
-  parseWikiInput,
-  searchWikiTitle,
-  fetchWikiLinks,
-  resolveCanonicalTitle,
-} from './services/wikiApi';
-import { WikiGraph } from './components/WikiGraph';
+import { WikiGraph } from './components/WikiGraph/WikiGraph';
 import { WikiGraph3D } from './components/WikiGraph3D';
 import { ControlPanel } from './components/ControlPanel';
 import { DetailSidebar } from './components/DetailSidebar';
 import { ContextMenu } from './components/ContextMenu';
-
-import { Compass, Layers, Share2, Info, Box, Eye } from 'lucide-react';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SubArticlesPanel } from './components/SubArticlesPanel';
 import { PathTimeline } from './components/PathTimeline';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, saveGraphToFirestore, type SavedGraph } from './services/firebase';
 import { UserAuth } from './components/UserAuth';
+import { LayoutCameraSelector } from './components/LayoutCameraSelector';
+import { SidebarToggleButton } from './components/SidebarToggleButton';
+
+import { useWikiAuth } from './hooks/useWikiAuth';
+import { useWikiGraph } from './hooks/wiki-graph';
 
 export default function App() {
-  // Auth state
-  const [user, setUser] = useState<User | null>(null);
+  // 1. Authentication hook
+  const { user } = useWikiAuth();
 
-  // Save/Unsaved states
-  const [isDirty, setIsDirty] = useState<boolean>(false);
-  const [saveLoading, setSaveLoading] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (!auth) return;
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Graph visual states
-  const [nodes, setNodes] = useState<WikiNode[]>([]);
-  const [links, setLinks] = useState<WikiLink[]>([]);
-  const [limit, setLimit] = useState<number>(5); // Node expansion limit per click
-  const [resetZoomTrigger, setResetZoomTrigger] = useState<number>(0);
-  
-  // Layout mode state: 'hierarchical' | 'radial'
-  const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'radial'>('hierarchical');
-  
-  // View mode state: '2d' | '3d'
-  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
-  
-  // 3D Layout mode state: 'free' | 'hierarchical' | 'radial'
-  const [layoutMode3D, setLayoutMode3D] = useState<'free' | 'hierarchical' | 'radial'>('free');
-  
-  // Expanded node IDs state (keeps branches locked open in Focused Pathway mode)
-  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
-  
-  // Interaction states
-  const [selectedNode, setSelectedNode] = useState<WikiNode | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
-  const [deepestActiveId, setDeepestActiveId] = useState<string | null>(null);
-  const [exploredLinksMap, setExploredLinksMap] = useState<{ [nodeId: string]: string[] }>({});
-  const [clickHistory, setClickHistory] = useState<WikiNode[]>([]);
-  const [focusSelectedTrigger, setFocusSelectedTrigger] = useState<number>(0);
-  const [fitScreenTrigger, setFitScreenTrigger] = useState<number>(0);
-  const [focusRootTrigger, setFocusRootTrigger] = useState<number>(0);
-  const [searchLoading, setSearchLoading] = useState<boolean>(false);
-
-  // RWD Mobile Detection & Panel states
-  const isInitialMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
-  const [isMobile, setIsMobile] = useState<boolean>(isInitialMobile);
-  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(!isInitialMobile);
-  const [isSubArticlesOpen, setIsSubArticlesOpen] = useState<boolean>(!isInitialMobile);
-
-  // Keep refs of key state variables to read them in the beforeunload listener
-  const stateRef = useRef({ user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading });
-  useEffect(() => {
-    stateRef.current = { user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading };
-  }, [user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading]);
-
-  // Warn user on leaving page if there are unsaved changes and trigger background save
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      const state = stateRef.current;
-      
-      // Only warn and save if there's a logged-in user and nodes on board
-      if (state.user && state.nodes.length > 0) {
-        // 1. If saving is currently in progress (manual save or background auto-save)
-        if (state.saveLoading) {
-          e.preventDefault();
-          e.returnValue = '您的圖譜正在上傳儲存中（尚未完成），現在關閉網頁可能會遺失進度！是否確定要離開？';
-          return e.returnValue;
-        }
-
-        // 2. If there are unsaved changes and we haven't started saving yet
-        if (state.isDirty) {
-          const rootNode = state.nodes.find(n => n.isRoot) || state.nodes[0];
-          if (rootNode) {
-            // Trigger saving asynchronously in the background immediately
-            setSaveLoading(true);
-            saveGraphToFirestore({
-              userId: state.user.uid,
-              title: rootNode.id,
-              rootTitle: rootNode.id,
-              nodes: state.nodes.map(n => ({
-                id: n.id,
-                label: n.label,
-                loaded: n.loaded,
-                url: n.url,
-                isRoot: n.isRoot || false,
-                lang: n.lang,
-                variant: n.variant,
-                depth: n.depth,
-                isDeadEnd: n.isDeadEnd || false,
-                fx: n.fx,
-                fy: n.fy,
-                x: n.x,
-                y: n.y,
-                z: n.z
-              })),
-              links: state.links.map(l => {
-                const src = typeof l.source === 'string' ? l.source : l.source.id;
-                const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-                return { source: src, target: tgt };
-              }),
-              expandedNodeIds: Array.from(state.expandedNodeIds),
-              layoutMode: state.viewMode === '3d' ? state.layoutMode3D : state.layoutMode,
-              limit: state.limit,
-              viewMode: state.viewMode,
-            }).then(() => {
-              setSaveLoading(false);
-              setIsDirty(false);
-            }).catch((err) => {
-              console.error('Autosave on beforeunload failed:', err);
-              setSaveLoading(false);
-            });
-          }
-
-          e.preventDefault();
-          e.returnValue = '偵測到未儲存變更，系統正在進行背景自動存檔，請確認是否關閉網頁？';
-          return e.returnValue;
-        }
-      }
-    };
+  // 2. Graph state machine hook
+  const {
+    nodes,
+    links,
+    limit,
+    setLimit,
+    layoutMode,
+    viewMode,
+    setViewMode,
+    expandedNodeIds,
+    selectedNode,
+    isSidebarOpen,
+    setIsSidebarOpen,
+    exploredLinksMap,
+    clickHistory,
+    isMobile,
+    isHistoryOpen,
+    setIsHistoryOpen,
+    isSubArticlesOpen,
+    setIsSubArticlesOpen,
+    searchLoading,
+    saveLoading,
+    isDirty,
+    contextMenu,
+    setContextMenu,
     
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-    };
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-
-
-  const toggleHistory = () => {
-    setIsHistoryOpen((prev) => {
-      const next = !prev;
-      if (next && isMobile) {
-        setIsSubArticlesOpen(false);
-        setIsSidebarOpen(false);
-      }
-      return next;
-    });
-  };
-
-  const toggleSubArticles = () => {
-    setIsSubArticlesOpen((prev) => {
-      const next = !prev;
-      if (next && isMobile) {
-        setIsHistoryOpen(false);
-        setIsSidebarOpen(false);
-      }
-      return next;
-    });
-  };
-
-  // Helper to add nodes to the click history (unique FIFO queue capped at 10 items)
-  const addToHistory = (node: WikiNode) => {
-    setClickHistory((prev) => {
-      // Remove duplicate if it already exists to bring it to the end (most recent)
-      const filtered = prev.filter((n) => n.id !== node.id);
-      const updated = [...filtered, node];
-      // Limit to 10 items
-      if (updated.length > 10) {
-        return updated.slice(updated.length - 10);
-      }
-      return updated;
-    });
-  };
-
-  // Handle node selection/click events (adds to history, updates active path, zooms, and auto-explores if needed)
-  const handleNodeClick = (node: WikiNode) => {
-    setSelectedNode(node);
-    setIsSidebarOpen(true);
-    setContextMenu(null);
-    setDeepestActiveId(node.id);
-    addToHistory(node);
-
-    if (isMobile) {
-      setIsHistoryOpen(false);
-      setIsSubArticlesOpen(false);
-    }
-
-    if (!node.loaded && !node.loading && !node.isDeadEnd) {
-      handleExplore(node);
-    }
-  };
-
-  // Toggle the expansion lock state for a given node
-  const handleToggleNodeExpand = (nodeId: string) => {
-    setExpandedNodeIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-      } else {
-        next.add(nodeId);
-        // Robust guard: If node is not loaded yet, explore it immediately to fetch child network
-        const node = nodes.find((n) => n.id === nodeId);
-        if (node && !node.loaded && !node.loading && !node.isDeadEnd) {
-          handleExplore(node);
-        }
-      }
-      return next;
-    });
-  };
-
-  // Custom overlays
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    node: WikiNode;
-  } | null>(null);
-
-
-
-  /**
-   * Search Wikipedia and initialize the graph with the target page as the root.
-   */
-  const handleSearch = async (input: string, searchLang: string) => {
-    setSearchLoading(true);
-    setContextMenu(null);
-    setSelectedNode(null);
-    setIsSidebarOpen(false);
-    setExpandedNodeIds(new Set());
-    
-    if (isMobile) {
-      setIsHistoryOpen(false);
-      setIsSubArticlesOpen(false);
-    }
-    
-    try {
-      // 1. Parse inputs to determine title and language code
-      const parsed = parseWikiInput(input, searchLang);
-      let targetTitle = parsed.title;
-      
-      // Determine variant (detect browser language if Chinese, default to zh-tw)
-      const userLang = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : '';
-      const browserChineseVariant = userLang.startsWith('zh-') ? userLang : 'zh-tw';
-      const variant = parsed.variant || (parsed.lang === 'zh' ? browserChineseVariant : undefined);
-
-      // 2. Resolve fuzzy query using search API if not a raw URL
-      if (!parsed.isUrl) {
-        targetTitle = await searchWikiTitle(parsed.title, parsed.lang);
-      }
-
-      // 3. Resolve canonical title (handles character variants and redirects)
-      targetTitle = await resolveCanonicalTitle(targetTitle, parsed.lang, variant);
-
-      if (!targetTitle) {
-        setSearchLoading(false);
-        return;
-      }
-
-      // 3. Setup root node
-      const rootNode: WikiNode = {
-        id: targetTitle,
-        label: targetTitle,
-        loaded: false,
-        url: `https://${parsed.lang}.wikipedia.org/wiki/${encodeURIComponent(targetTitle.replace(/ /g, '_'))}`,
-        isRoot: true,
-        lang: parsed.lang,
-        variant, // Store variant!
-        depth: 0, // Root node is depth 0
-      };
-
-      setNodes([rootNode]);
-      setLinks([]);
-      setDeepestActiveId(targetTitle);
-      setClickHistory([rootNode]);
-      
-      // Auto reset zoom back to center
-      setResetZoomTrigger((prev) => prev + 1);
-      setIsDirty(true);
-
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
-
-  /**
-   * Explores and expands a node's outgoing links.
-   * Guarantees safety check to prevent circular paths and duplicate nodes.
-   */
-  const handleExplore = async (node: WikiNode) => {
-    if (node.loaded || node.loading || node.isDeadEnd) return;
-
-    // 1. Mark target node as loading in state
-    setNodes((prevNodes) =>
-      prevNodes.map((n) => (n.id === node.id ? { ...n, loading: true } : n))
-    );
-    if (selectedNode?.id === node.id) {
-      setSelectedNode((prev) => (prev ? { ...prev, loading: true } : null));
-    }
-
-    try {
-      // 2. Fetch sublinks (always fetch all links to cache them, enabling instant slider drag updates)
-      let allTitles: string[];
-      if (exploredLinksMap[node.id]) {
-        allTitles = exploredLinksMap[node.id];
-      } else {
-        const onResolve = (resolved: string) => {
-          setNodes((prevNodes) => {
-            const targetNode = prevNodes.find((n) => n.id === node.id);
-            if (targetNode && targetNode.label === resolved) {
-              return prevNodes;
-            }
-            return prevNodes.map((n) =>
-              n.id === node.id
-                ? {
-                    ...n,
-                    label: resolved,
-                    url: `https://${n.lang}.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, '_'))}`,
-                  }
-                : n
-            );
-          });
-          setSelectedNode((prev) => {
-            if (prev && prev.id === node.id) {
-              if (prev.label === resolved) {
-                return prev;
-              }
-              return {
-                ...prev,
-                label: resolved,
-                url: `https://${prev.lang}.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, '_'))}`,
-              };
-            }
-            return prev;
-          });
-        };
-        allTitles = await fetchWikiLinks(node.id, node.lang, 0, onResolve, node.variant); // 0 parses all outgoing links
-        setExploredLinksMap((prev) => ({
-          ...prev,
-          [node.id]: allTitles,
-        }));
-      }
-
-      if (allTitles.length === 0) {
-        // Mark as dead end
-        setNodes((prevNodes) =>
-          prevNodes.map((n) =>
-            n.id === node.id ? { ...n, loaded: true, loading: false, isDeadEnd: true } : n
-          )
-        );
-        if (selectedNode?.id === node.id) {
-          setSelectedNode((prev) =>
-            prev ? { ...prev, loaded: true, loading: false, isDeadEnd: true } : null
-          );
-        }
-        return;
-      }
-
-      // Slice the full sublinks using the current slider limit
-      const currentLimit = limit;
-      const fetchedTitles = currentLimit <= 0 ? allTitles : allTitles.slice(0, currentLimit);
-
-      // 3. Prevent duplicate node items using circular registry
-      setNodes((prevNodes) => {
-        const existingNodeIds = new Set(prevNodes.map((n) => n.id));
-        const newNodesToAdd: WikiNode[] = [];
-
-        fetchedTitles.forEach((title) => {
-          if (!existingNodeIds.has(title)) {
-            newNodesToAdd.push({
-              id: title,
-              label: title,
-              loaded: false,
-              url: `https://${node.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
-              lang: node.lang,
-              variant: node.variant, // Inherit variant!
-              depth: (node.depth ?? 0) + 1, // Depth is parent's depth + 1
-            });
-            existingNodeIds.add(title); // Track to avoid duplicates inside this batch
-          }
-        });
-
-        // Map and update the explored target node to loaded
-        const updatedNodes = prevNodes.map((n) =>
-          n.id === node.id ? { ...n, loaded: true, loading: false } : n
-        );
-
-        // Auto select the newly explored parent node to center the pathway and display children
-        setSelectedNode({ ...node, loaded: true, loading: false });
-        setDeepestActiveId(node.id);
-
-        return [...updatedNodes, ...newNodesToAdd];
-      });
-
-      // 4. Register new connection links (links are added regardless of whether target node is new or existing)
-      setLinks((prevLinks) => {
-        const existingLinkKeys = new Set(
-          prevLinks.map((l) => {
-            const src = typeof l.source === 'string' ? l.source : l.source.id;
-            const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-            return `${src}->${tgt}`;
-          })
-        );
-
-        const newLinksToAdd: WikiLink[] = [];
-        fetchedTitles.forEach((title) => {
-          const key = `${node.id}->${title}`;
-          if (!existingLinkKeys.has(key)) {
-            newLinksToAdd.push({
-              source: node.id,
-              target: title,
-            });
-            existingLinkKeys.add(key);
-          }
-        });
-
-        return [...prevLinks, ...newLinksToAdd];
-      });
-
-      setIsDirty(true);
-    } catch (error) {
-      console.error(error);
-      // Revert loading state
-      setNodes((prevNodes) =>
-        prevNodes.map((n) => (n.id === node.id ? { ...n, loading: false } : n))
-      );
-      if (selectedNode?.id === node.id) {
-        setSelectedNode((prev) => (prev ? { ...prev, loading: false } : null));
-      }
-    }
-  };
-
-  /**
-   * Adds a hidden sub-article directly to the canvas as a child of the selected node,
-   * selects it, and initiates exploration immediately.
-   */
-  const handleAddSubArticle = (title: string) => {
-    if (!selectedNode) return;
-
-    const newNode: WikiNode = {
-      id: title,
-      label: title,
-      loaded: false,
-      url: `https://${selectedNode.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
-      lang: selectedNode.lang,
-      variant: selectedNode.variant, // Pass variant down!
-      depth: (selectedNode.depth ?? 0) + 1,
-    };
-
-    const newLink: WikiLink = {
-      source: selectedNode.id,
-      target: title,
-    };
-
-    setNodes((prevNodes) => {
-      if (prevNodes.some(n => n.id === title)) return prevNodes;
-      return [...prevNodes, newNode];
-    });
-
-    setLinks((prevLinks) => {
-      const linkKey = `${selectedNode.id}->${title}`;
-      if (prevLinks.some(l => {
-        const src = typeof l.source === 'string' ? l.source : l.source.id;
-        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-        return `${src}->${tgt}` === linkKey;
-      })) {
-        return prevLinks;
-      }
-      return [...prevLinks, newLink];
-    });
-
-    // Select the new node and explore it
-    setSelectedNode(newNode);
-    setDeepestActiveId(newNode.id);
-    setIsSidebarOpen(true);
-    if (isMobile) {
-      setIsHistoryOpen(false);
-      setIsSubArticlesOpen(false);
-    }
-
-    setIsDirty(true);
-
-    // Auto explore the newly spawned child
-    setTimeout(() => {
-      handleExplore(newNode);
-    }, 150);
-  };
-
-  /**
-   * Manually re-searches a node, clearing its caches and forcing D3 to rebuild its links.
-   * Perfect for correcting empty branches or search errors.
-   */
-  const handleReSearch = async (node: WikiNode) => {
-    // 1. Evict cache for this node
-    setExploredLinksMap((prev) => {
-      const updated = { ...prev };
-      delete updated[node.id];
-      return updated;
-    });
-
-    // 2. Set node state to loading, resetting loaded/isDeadEnd status
-    setNodes((prevNodes) =>
-      prevNodes.map((n) =>
-        n.id === node.id ? { ...n, loaded: false, isDeadEnd: false, loading: true } : n
-      )
-    );
-    setSelectedNode((prev) =>
-      prev && prev.id === node.id ? { ...prev, loaded: false, isDeadEnd: false, loading: true } : prev
-    );
-
-    // 3. Clear any existing connections where this node is the SOURCE
-    // to allow a fresh start for outgoing connections from this node.
-    setLinks((prevLinks) =>
-      prevLinks.filter((l) => {
-        const src = typeof l.source === 'string' ? l.source : l.source.id;
-        return src !== node.id;
-      })
-    );
-
-    try {
-      // 4. Fetch outgoing links freshly
-      const onResolve = (resolved: string) => {
-        setNodes((prevNodes) => {
-          const targetNode = prevNodes.find((n) => n.id === node.id);
-          if (targetNode && targetNode.label === resolved) {
-            return prevNodes;
-          }
-          return prevNodes.map((n) =>
-            n.id === node.id
-              ? {
-                  ...n,
-                  label: resolved,
-                  url: `https://${n.lang}.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, '_'))}`,
-                }
-              : n
-          );
-        });
-        setSelectedNode((prev) => {
-          if (prev && prev.id === node.id) {
-            if (prev.label === resolved) {
-              return prev;
-            }
-            return {
-              ...prev,
-              label: resolved,
-              url: `https://${prev.lang}.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, '_'))}`,
-            };
-          }
-          return prev;
-        });
-      };
-      const allTitles = await fetchWikiLinks(node.id, node.lang, 0, onResolve, node.variant); // 0 parses all outgoing links
-      
-      setExploredLinksMap((prev) => ({
-        ...prev,
-        [node.id]: allTitles,
-      }));
-
-      if (allTitles.length === 0) {
-        // Mark as dead end if still empty
-        setNodes((prevNodes) =>
-          prevNodes.map((n) =>
-            n.id === node.id ? { ...n, loaded: true, loading: false, isDeadEnd: true } : n
-          )
-        );
-        setSelectedNode((prev) =>
-          prev && prev.id === node.id ? { ...prev, loaded: true, loading: false, isDeadEnd: true } : prev
-        );
-        return;
-      }
-
-      // Slice based on the current slider limit
-      const currentLimit = limit;
-      const fetchedTitles = currentLimit <= 0 ? allTitles : allTitles.slice(0, currentLimit);
-
-      // 5. Add new nodes dynamically
-      setNodes((prevNodes) => {
-        const existingNodeIds = new Set(prevNodes.map((n) => n.id));
-        const newNodesToAdd: WikiNode[] = [];
-
-        fetchedTitles.forEach((title) => {
-          if (!existingNodeIds.has(title)) {
-            newNodesToAdd.push({
-              id: title,
-              label: title,
-              loaded: false,
-              url: `https://${node.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
-              lang: node.lang,
-              variant: node.variant, // Pass variant down!
-              depth: (node.depth ?? 0) + 1,
-            });
-            existingNodeIds.add(title);
-          }
-        });
-
-        const updatedNodes = prevNodes.map((n) =>
-          n.id === node.id ? { ...n, loaded: true, loading: false } : n
-        );
-
-        setSelectedNode({ ...node, loaded: true, loading: false });
-        setDeepestActiveId(node.id);
-
-        return [...updatedNodes, ...newNodesToAdd];
-      });
-
-      // 6. Connect new links
-      setLinks((prevLinks) => {
-        const existingLinkKeys = new Set(
-          prevLinks.map((l) => {
-            const src = typeof l.source === 'string' ? l.source : l.source.id;
-            const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-            return `${src}->${tgt}`;
-          })
-        );
-
-        const newLinksToAdd: WikiLink[] = [];
-        fetchedTitles.forEach((title) => {
-          const key = `${node.id}->${title}`;
-          if (!existingLinkKeys.has(key)) {
-            newLinksToAdd.push({
-              source: node.id,
-              target: title,
-            });
-            existingLinkKeys.add(key);
-          }
-        });
-
-        return [...prevLinks, ...newLinksToAdd];
-      });
-
-      setIsDirty(true);
-    } catch (error) {
-      console.error(error);
-      // Revert loading state
-      setNodes((prevNodes) =>
-        prevNodes.map((n) => (n.id === node.id ? { ...n, loading: false } : n))
-      );
-      setSelectedNode((prev) =>
-        prev && prev.id === node.id ? { ...prev, loading: false } : prev
-      );
-    }
-  };
-
-  /**
-   * Sets a specific node as the fresh root Exploration center, wiping other branches.
-   */
-  const handleSetRoot = async (node: WikiNode) => {
-    setSelectedNode(null);
-    setIsSidebarOpen(true);
-    if (isMobile) {
-      setIsHistoryOpen(false);
-      setIsSubArticlesOpen(false);
-    }
-    setContextMenu(null);
-    setExpandedNodeIds(new Set());
-    
-    const nextRoot: WikiNode = {
-      ...node,
-      isRoot: true,
-      loaded: false,
-      isDeadEnd: false,
-      loading: false,
-      depth: 0, // Reset depth to 0 for the new center
-    };
-
-    setNodes([nextRoot]);
-    setLinks([]);
-    setSelectedNode(nextRoot);
-    setDeepestActiveId(node.id);
-    setClickHistory([nextRoot]);
-    setResetZoomTrigger((prev) => prev + 1);
-
-    setIsDirty(true);
-
-    // Auto trigger expand on the new root
-    setTimeout(() => {
-      handleExplore(nextRoot);
-    }, 200);
-  };
-
-  /**
-   * Prunes/removes a specific node from the canvas together with its connected links.
-   */
-  const handleRemoveNode = (node: WikiNode) => {
-    setContextMenu(null);
-    if (selectedNode?.id === node.id) {
-      setSelectedNode(null);
-      setIsSidebarOpen(false);
-    }
-
-    setNodes((prevNodes) => prevNodes.filter((n) => n.id !== node.id));
-    setLinks((prevLinks) =>
-      prevLinks.filter((l) => {
-        const src = typeof l.source === 'string' ? l.source : l.source.id;
-        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-        return src !== node.id && tgt !== node.id;
-      })
-    );
-
-    // Remove from expandedNodeIds
-    setExpandedNodeIds((prev) => {
-      const next = new Set(prev);
-      next.delete(node.id);
-      return next;
-    });
-
-    setIsDirty(true);
-  };
-
-  /**
-   * Activates custom floating context menu on node right clicks
-   */
-  const handleNodeRightClick = (node: WikiNode, e: React.MouseEvent) => {
-    e.preventDefault();
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      node,
-    });
-  };
-
-  /**
-   * Clean up whiteboard slate fully
-   */
-  const handleClearBoard = () => {
-    setNodes([]);
-    setLinks([]);
-    setSelectedNode(null);
-    setIsSidebarOpen(false);
-    setContextMenu(null);
-    setClickHistory([]);
-    setIsDirty(false);
-  };
-
-  // 5. Watch for branch limit changes to dynamically update visible sublinks instantly!
-  useEffect(() => {
-    if (!selectedNode || !selectedNode.loaded) return;
-    const allChildren = exploredLinksMap[selectedNode.id];
-    if (!allChildren) return;
-
-    const currentLimit = limit;
-    const targetChildren = currentLimit <= 0 ? allChildren : allChildren.slice(0, currentLimit);
-    const targetChildrenSet = new Set(targetChildren);
-    const allChildrenSet = new Set(allChildren);
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setNodes((prevNodes) => {
-      // Keep nodes that are either NOT children of selectedNode OR are in the targetChildren slice
-      const otherNodes = prevNodes.filter((n) => {
-        return !allChildrenSet.has(n.id) || targetChildrenSet.has(n.id);
-      });
-
-      // Find which targetChildren are missing
-      const existingNodeIds = new Set(otherNodes.map((n) => n.id));
-      const newNodesToAdd: WikiNode[] = [];
-      targetChildren.forEach((title) => {
-        if (!existingNodeIds.has(title)) {
-          newNodesToAdd.push({
-            id: title,
-            label: title,
-            loaded: false,
-            url: `https://${selectedNode.lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
-            lang: selectedNode.lang,
-            variant: selectedNode.variant, // Pass variant down!
-            depth: (selectedNode.depth ?? 0) + 1,
-          });
-        }
-      });
-
-      return [...otherNodes, ...newNodesToAdd];
-    });
-
-    setLinks((prevLinks) => {
-      // Keep links that are NOT outgoing from selectedNode OR target is in targetChildrenSet
-      const otherLinks = prevLinks.filter((l) => {
-        const src = typeof l.source === 'string' ? l.source : l.source.id;
-        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-        return src !== selectedNode.id || targetChildrenSet.has(tgt);
-      });
-
-      // Find missing links
-      const existingLinkKeys = new Set(
-        otherLinks.map((l) => {
-          const src = typeof l.source === 'string' ? l.source : l.source.id;
-          const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-          return `${src}->${tgt}`;
-        })
-      );
-
-      const newLinksToAdd: WikiLink[] = [];
-      targetChildren.forEach((title) => {
-        const key = `${selectedNode.id}->${title}`;
-        if (!existingLinkKeys.has(key)) {
-          newLinksToAdd.push({
-            source: selectedNode.id,
-            target: title,
-          });
-        }
-      });
-
-      return [...otherLinks, ...newLinksToAdd];
-    });
-  }, [limit, selectedNode?.id]);
-
-  // Coordinate coordinator that releases locks and toggles modes
-  const handleLayoutModeChange = (mode: 'hierarchical' | 'radial') => {
-    setLayoutMode(mode);
-    setNodes((prevNodes) =>
-      prevNodes.map((n) => ({
-        ...n,
-        fx: null,
-        fy: null,
-      }))
-    );
-    setResetZoomTrigger((prev) => prev + 1);
-    
-
-    
-  };
-
-  // Flags non-existent pages in global state
-  const handleMarkDeadEnd = useCallback((nodeId: string) => {
-    setNodes((prev) =>
-      prev.map((n) => (n.id === nodeId ? { ...n, isDeadEnd: true, loaded: true, loading: false } : n))
-    );
-    if (selectedNode?.id === nodeId) {
-      setSelectedNode((prev) =>
-        prev ? { ...prev, isDeadEnd: true, loaded: true, loading: false } : null
-      );
-    }
-  }, [selectedNode?.id]);
-
-  // Dynamically updates a node's label and URL when a canonical title is resolved
-  const handleUpdateNodeLabel = useCallback((nodeId: string, resolvedTitle: string) => {
-    setNodes((prevNodes) => {
-      const targetNode = prevNodes.find((n) => n.id === nodeId);
-      if (targetNode && targetNode.label === resolvedTitle) {
-        return prevNodes;
-      }
-      return prevNodes.map((n) =>
-        n.id === nodeId
-          ? {
-              ...n,
-              label: resolvedTitle,
-              url: `https://${n.lang}.wikipedia.org/wiki/${encodeURIComponent(resolvedTitle.replace(/ /g, '_'))}`,
-            }
-          : n
-      );
-    });
-    setSelectedNode((prev) => {
-      if (prev && prev.id === nodeId) {
-        if (prev.label === resolvedTitle) {
-          return prev;
-        }
-        return {
-          ...prev,
-          label: resolvedTitle,
-          url: `https://${prev.lang}.wikipedia.org/wiki/${encodeURIComponent(resolvedTitle.replace(/ /g, '_'))}`,
-        };
-      }
-      return prev;
-    });
-  }, []);
-
-  // Trace ancestral path of active selected node back to the root
-  const getActivePathSet = (): Set<string> => {
-    const activeSet = new Set<string>();
-    
-    // Use state-based deepestActiveId to keep path history intact!
-    let currentId = deepestActiveId || selectedNode?.id;
-    if (!currentId && nodes.length > 0) {
-      const root = nodes.find(n => n.isRoot || n.depth === 0) || nodes[0];
-      currentId = root.id;
-    }
-
-    if (!currentId) return activeSet;
-
-    let tempId: string | null = currentId;
-    let iterations = 0;
-    while (tempId && iterations < 100) {
-      activeSet.add(tempId);
-      
-      const parentLink = links.find(l => {
-        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-        return tgt === tempId;
-      });
-      
-      if (parentLink) {
-        const src = typeof parentLink.source === 'string' ? parentLink.source : parentLink.source.id;
-        tempId = src;
-      } else {
-        tempId = null;
-      }
-      iterations++;
-    }
-
-    return activeSet;
-  };
-
-  const activePathSet = getActivePathSet();
-  const currentDeepestActiveId = deepestActiveId || selectedNode?.id || (nodes.find(n => n.isRoot || n.depth === 0) || nodes[0])?.id;
-
-  // Filter visible nodes to implement the Focused Pathway Mode
-  const visibleNodes = nodes.filter(node => {
-    if (activePathSet.has(node.id)) return true;
-    if (expandedNodeIds.has(node.id)) return true;
-    
-    const parentLink = links.find(l => {
-      const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-      return tgt === node.id;
-    });
-    if (parentLink) {
-      const src = typeof parentLink.source === 'string' ? parentLink.source : parentLink.source.id;
-      if (src === currentDeepestActiveId || expandedNodeIds.has(src)) return true;
-    }
-
-    return false;
-  });
-
-  // Filter visible links connecting only visible nodes
-  const visibleNodesSet = new Set(visibleNodes.map(n => n.id));
-  const visibleLinks = links.filter(link => {
-    const src = typeof link.source === 'string' ? link.source : link.source.id;
-    const tgt = typeof link.target === 'string' ? link.target : link.target.id;
-    return visibleNodesSet.has(src) && visibleNodesSet.has(tgt);
-  });
-
-  // Calculates connections count for the DetailSidebar display
-  const getConnectedLinksCount = (nodeId: string): number => {
-    return links.filter((l) => {
-      const src = typeof l.source === 'string' ? l.source : l.source.id;
-      const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-      return src === nodeId || tgt === nodeId;
-    }).length;
-  };
-
-  // Calculates the ordered list of nodes in the current active exploration path from root to selected
-  const getActivePathList = (): WikiNode[] => {
-    const pathList: WikiNode[] = [];
-    let currentId = deepestActiveId || selectedNode?.id;
-    
-    if (!currentId && nodes.length > 0) {
-      const root = nodes.find(n => n.isRoot || n.depth === 0) || nodes[0];
-      currentId = root.id;
-    }
-
-    if (!currentId) return pathList;
-
-    let tempId: string | null = currentId;
-    let iterations = 0;
-    while (tempId && iterations < 100) {
-      const foundNode = nodes.find(n => n.id === tempId);
-      if (foundNode) {
-        pathList.unshift(foundNode); // Prepend to sort from Root to leaf
-      }
-      
-      const parentLink = links.find(l => {
-        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-        return tgt === tempId;
-      });
-      
-      if (parentLink) {
-        const src = typeof parentLink.source === 'string' ? parentLink.source : parentLink.source.id;
-        tempId = src;
-      } else {
-        tempId = null;
-      }
-      iterations++;
-    }
-
-    return pathList;
-  };
-
-  const handleSaveGraph = async (title: string) => {
-    if (!user) {
-      alert('請先登入帳戶！');
-      return;
-    }
-    const rootNode = nodes.find(n => n.isRoot);
-    if (!rootNode) {
-      alert('看板為空，無法儲存。');
-      return;
-    }
-    
-    setSaveLoading(true);
-    try {
-      await saveGraphToFirestore({
-        userId: user.uid,
-        title: title || rootNode.id,
-        rootTitle: rootNode.id,
-        nodes: nodes.map(n => ({
-          id: n.id,
-          label: n.label,
-          loaded: n.loaded,
-          url: n.url,
-          isRoot: n.isRoot || false,
-          lang: n.lang,
-          variant: n.variant,
-          depth: n.depth,
-          isDeadEnd: n.isDeadEnd || false,
-          fx: n.fx,
-          fy: n.fy,
-          x: n.x,
-          y: n.y,
-          z: n.z
-        })),
-        links: links.map(l => {
-          const src = typeof l.source === 'string' ? l.source : l.source.id;
-          const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-          return { source: src, target: tgt };
-        }),
-        expandedNodeIds: Array.from(expandedNodeIds),
-        layoutMode: viewMode === '3d' ? layoutMode3D : layoutMode,
-        limit,
-        viewMode,
-      });
-      setIsDirty(false);
-    } catch (error: any) {
-      console.error('Save graph failed:', error);
-    } finally {
-      setSaveLoading(false);
-    }
-  };
-
-  const handleLoadGraph = (savedGraph: SavedGraph) => {
-    // Reconstruct nodes
-    const loadedNodes: WikiNode[] = savedGraph.nodes.map(n => ({
-      ...n,
-    }));
-    
-    // Reconstruct links
-    const loadedLinks: WikiLink[] = savedGraph.links.map(l => ({
-      source: l.source,
-      target: l.target
-    }));
-
-    // Update state
-    setNodes(loadedNodes);
-    setLinks(loadedLinks);
-    setExpandedNodeIds(new Set(savedGraph.expandedNodeIds));
-    setLimit(savedGraph.limit);
-
-    // Apply viewMode & layoutMode state based on loaded values
-    const loadedViewMode = savedGraph.viewMode || (savedGraph.layoutMode === 'free' ? '3d' : '2d');
-    setViewMode(loadedViewMode);
-    if (loadedViewMode === '3d') {
-      setLayoutMode3D(savedGraph.layoutMode as 'free' | 'hierarchical' | 'radial');
-    } else {
-      setLayoutMode(savedGraph.layoutMode as 'hierarchical' | 'radial');
-    }
-    
-    // Set selectedNode to the root node of the loaded graph
-    const rootNode = loadedNodes.find(n => n.isRoot) || loadedNodes[0];
-    if (rootNode) {
-      setSelectedNode(rootNode);
-      setDeepestActiveId(rootNode.id);
-      addToHistory(rootNode);
-    }
-
-    // Reset zoom back to center
-    setResetZoomTrigger((prev) => prev + 1);
-    
-    // Clear dirty state since it matches cloud perfectly
-    setIsDirty(false);
-  };
+    // Handlers
+    handleSearch,
+    handleExplore,
+    handleNodeClick,
+    handleToggleNodeExpand,
+    handleAddSubArticle,
+    handleReSearch,
+    handleSetRoot,
+    handleRemoveNode,
+    handleClearBoard,
+    handleBackgroundClick,
+    handleLayoutModeChange,
+    handleMarkDeadEnd,
+    handleUpdateNodeLabel,
+    handleSaveGraph,
+    handleLoadGraph,
+    toggleHistory,
+    toggleSubArticles,
+    handleNodeRightClick,
+
+    // Derived properties & operations
+    activePathSet,
+    visibleNodes,
+    visibleLinks,
+    getConnectedLinksCount,
+    getActivePathList,
+    resetZoomTrigger,
+    setResetZoomTrigger,
+    focusSelectedTrigger,
+    setFocusSelectedTrigger,
+    fitScreenTrigger,
+    setFitScreenTrigger,
+    focusRootTrigger,
+    setFocusRootTrigger,
+  } = useWikiGraph(user);
+
+  const rootNode = nodes.find(n => n.isRoot) || nodes[0];
 
   return (
     <main className="w-full h-full relative overflow-hidden bg-slate-50">
@@ -1097,15 +93,7 @@ export default function App() {
             nodes={nodes}
             links={links}
             onNodeClick={handleNodeClick}
-            onBackgroundClick={() => {
-              setSelectedNode(null);
-              setDeepestActiveId(null);
-              setIsSidebarOpen(false);
-              if (isMobile) {
-                setIsHistoryOpen(false);
-                setIsSubArticlesOpen(false);
-              }
-            }}
+            onBackgroundClick={handleBackgroundClick}
             onNodeRightClick={handleNodeRightClick}
             onMarkDeadEnd={handleMarkDeadEnd}
             selectedNode={selectedNode}
@@ -1123,15 +111,7 @@ export default function App() {
             links={visibleLinks}
             layoutMode={layoutMode}
             onNodeClick={handleNodeClick}
-            onBackgroundClick={() => {
-              setSelectedNode(null);
-              setDeepestActiveId(null);
-              setIsSidebarOpen(false);
-              if (isMobile) {
-                setIsHistoryOpen(false);
-                setIsSubArticlesOpen(false);
-              }
-            }}
+            onBackgroundClick={handleBackgroundClick}
             onNodeRightClick={handleNodeRightClick}
             onMarkDeadEnd={handleMarkDeadEnd}
             selectedNode={selectedNode}
@@ -1187,7 +167,7 @@ export default function App() {
         isDirty={isDirty}
         onSaveGraph={handleSaveGraph}
         saveLoading={saveLoading}
-        rootTitle={(nodes.find(n => n.isRoot) || nodes[0])?.id || ''}
+        rootTitle={rootNode?.id || ''}
       />
 
       {/* 3. Sliding Detail Reader Panel */}
@@ -1221,121 +201,22 @@ export default function App() {
 
       {/* 5. Floating Layout & Camera Selector at the bottom-left corner */}
       {nodes.length > 0 && (
-        <div className="fixed bottom-20 left-4 md:bottom-4 md:left-4 z-30 bg-white/80 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-2 flex flex-col gap-2 pointer-events-auto transition-all hover:shadow-xl duration-300 max-w-xs">
-          
-          {/* View Mode Switcher Row */}
-          <div className="flex gap-1 bg-slate-100/80 p-0.5 rounded-xl">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('2d');
-                setResetZoomTrigger(prev => prev + 1);
-              }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                viewMode === '2d'
-                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/20'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>2D 視角</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('3d');
-                setResetZoomTrigger(prev => prev + 1);
-              }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                viewMode === '3d'
-                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/20'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Box className="w-3.5 h-3.5" />
-              <span>3D 拓撲</span>
-            </button>
-          </div>
-          {/* Layout Actions Row (Only visible in 2D mode, 3D mode is locked to 3D Free layout) */}
-          {viewMode === '2d' && (
-            <>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => handleLayoutModeChange('hierarchical')}
-                  className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
-                    layoutMode === 'hierarchical'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
-                  }`}
-                  title="直線階層排列"
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>階層排列</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleLayoutModeChange('radial')}
-                  className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
-                    layoutMode === 'radial'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
-                  }`}
-                  title="放射網絡排列"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>放射排列</span>
-                </button>
-              </div>
-
-              {/* Divider */}
-              <div className="h-px bg-slate-100 w-full" />
-            </>
-          )}
-
-          {/* Camera Positioning Row */}
-          <div className="flex justify-between gap-1 items-center px-1">
-            <span className="text-[10px] font-bold text-slate-400 select-none mr-2 shrink-0">相機鏡頭:</span>
-            <div className="flex gap-1.5">
-              {/* Focus Selected */}
-              <button
-                type="button"
-                onClick={() => setFocusSelectedTrigger(prev => prev + 1)}
-                disabled={!selectedNode}
-                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 rounded-lg transition-all active:scale-95 cursor-pointer border border-slate-100/10"
-                title={selectedNode ? `鏡頭聚焦選中節點：「${selectedNode.id}」` : "請先選擇畫布上的任何節點來進行鏡頭聚焦"}
-              >
-                <Compass className="w-4 h-4" />
-              </button>
-
-              {/* Fit Screen */}
-              <button
-                type="button"
-                onClick={() => setFitScreenTrigger(prev => prev + 1)}
-                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all active:scale-95 cursor-pointer border border-slate-100/10"
-                title="相機全局適應 (將整顆樹縮小塞滿視窗並置中)"
-              >
-                <Share2 className="w-4 h-4 rotate-90" />
-              </button>
-
-              {/* Focus Root */}
-              <button
-                type="button"
-                onClick={() => setFocusRootTrigger(prev => prev + 1)}
-                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all active:scale-95 cursor-pointer border border-slate-100/10"
-                title="定位聚焦到最初搜尋的根節點 (Root)"
-              >
-                <Layers className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-        </div>
+        <LayoutCameraSelector
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          layoutMode={layoutMode}
+          onLayoutModeChange={handleLayoutModeChange}
+          selectedNode={selectedNode}
+          onResetView={() => setResetZoomTrigger(prev => prev + 1)}
+          onFocusSelected={() => setFocusSelectedTrigger(prev => prev + 1)}
+          onFitScreen={() => setFitScreenTrigger(prev => prev + 1)}
+          onFocusRoot={() => setFocusRootTrigger(prev => prev + 1)}
+        />
       )}
 
       {/* Floating Sidebar Toggle Button (shown only when selectedNode is set but sidebar is closed) */}
       {selectedNode && !isSidebarOpen && (
-        <button
+        <SidebarToggleButton
           onClick={() => {
             setIsSidebarOpen(true);
             if (isMobile) {
@@ -1343,14 +224,8 @@ export default function App() {
               setIsSubArticlesOpen(false);
             }
           }}
-          className="fixed right-6 top-1/2 -translate-y-1/2 z-30 p-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 cursor-pointer transition-all duration-300 flex items-center justify-center border border-indigo-500/20"
-          title="開啟詳細資訊面板"
-        >
-          <Info className="w-5 h-5" />
-        </button>
+        />
       )}
-
-
 
       {/* 7. Bottom Center Breadcrumb Exploration Timeline */}
       <PathTimeline
