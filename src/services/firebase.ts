@@ -46,8 +46,9 @@ export interface SavedGraph {
   nodes: any[];
   links: any[];
   expandedNodeIds: string[];
-  layoutMode: 'hierarchical' | 'radial';
+  layoutMode: 'hierarchical' | 'radial' | 'free';
   limit: number;
+  viewMode?: '2d' | '3d';
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }

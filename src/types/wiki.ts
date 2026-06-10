@@ -11,6 +11,9 @@ export interface WikiNode extends d3.SimulationNodeDatum {
   lang: string;        // The language of this specific node (e.g. "zh", "en", "ja")
   variant?: string;    // The language variant (e.g. "zh-tw", "zh-cn")
   depth?: number;      // Hierarchical generation depth (0 = root, 1 = children, 2 = grandchildren...)
+  z?: number;          // 3D coordinate
+  vz?: number;         // 3D velocity
+  fz?: number | null;  // 3D fixed coordinate
 }
 
 export interface WikiLink extends d3.SimulationLinkDatum<WikiNode> {

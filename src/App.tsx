@@ -7,11 +7,12 @@ import {
   resolveCanonicalTitle,
 } from './services/wikiApi';
 import { WikiGraph } from './components/WikiGraph';
+import { WikiGraph3D } from './components/WikiGraph3D';
 import { ControlPanel } from './components/ControlPanel';
 import { DetailSidebar } from './components/DetailSidebar';
 import { ContextMenu } from './components/ContextMenu';
 
-import { Compass, Layers, Share2, Info } from 'lucide-react';
+import { Compass, Layers, Share2, Info, Box, Eye } from 'lucide-react';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SubArticlesPanel } from './components/SubArticlesPanel';
 import { PathTimeline } from './components/PathTimeline';
@@ -44,6 +45,12 @@ export default function App() {
   // Layout mode state: 'hierarchical' | 'radial'
   const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'radial'>('hierarchical');
   
+  // View mode state: '2d' | '3d'
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  
+  // 3D Layout mode state: 'free' | 'hierarchical' | 'radial'
+  const [layoutMode3D, setLayoutMode3D] = useState<'free' | 'hierarchical' | 'radial'>('free');
+  
   // Expanded node IDs state (keeps branches locked open in Focused Pathway mode)
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
   
@@ -65,10 +72,10 @@ export default function App() {
   const [isSubArticlesOpen, setIsSubArticlesOpen] = useState<boolean>(!isInitialMobile);
 
   // Keep refs of key state variables to read them in the beforeunload listener
-  const stateRef = useRef({ user, nodes, links, expandedNodeIds, layoutMode, limit, isDirty, saveLoading });
+  const stateRef = useRef({ user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading });
   useEffect(() => {
-    stateRef.current = { user, nodes, links, expandedNodeIds, layoutMode, limit, isDirty, saveLoading };
-  }, [user, nodes, links, expandedNodeIds, layoutMode, limit, isDirty, saveLoading]);
+    stateRef.current = { user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading };
+  }, [user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading]);
 
   // Warn user on leaving page if there are unsaved changes and trigger background save
   useEffect(() => {
@@ -107,7 +114,8 @@ export default function App() {
                 fx: n.fx,
                 fy: n.fy,
                 x: n.x,
-                y: n.y
+                y: n.y,
+                z: n.z
               })),
               links: state.links.map(l => {
                 const src = typeof l.source === 'string' ? l.source : l.source.id;
@@ -115,8 +123,9 @@ export default function App() {
                 return { source: src, target: tgt };
               }),
               expandedNodeIds: Array.from(state.expandedNodeIds),
-              layoutMode: state.layoutMode,
+              layoutMode: state.viewMode === '3d' ? state.layoutMode3D : state.layoutMode,
               limit: state.limit,
+              viewMode: state.viewMode,
             }).then(() => {
               setSaveLoading(false);
               setIsDirty(false);
@@ -1013,7 +1022,8 @@ export default function App() {
           fx: n.fx,
           fy: n.fy,
           x: n.x,
-          y: n.y
+          y: n.y,
+          z: n.z
         })),
         links: links.map(l => {
           const src = typeof l.source === 'string' ? l.source : l.source.id;
@@ -1021,8 +1031,9 @@ export default function App() {
           return { source: src, target: tgt };
         }),
         expandedNodeIds: Array.from(expandedNodeIds),
-        layoutMode,
+        layoutMode: viewMode === '3d' ? layoutMode3D : layoutMode,
         limit,
+        viewMode,
       });
       setIsDirty(false);
     } catch (error: any) {
@@ -1048,8 +1059,16 @@ export default function App() {
     setNodes(loadedNodes);
     setLinks(loadedLinks);
     setExpandedNodeIds(new Set(savedGraph.expandedNodeIds));
-    setLayoutMode(savedGraph.layoutMode);
     setLimit(savedGraph.limit);
+
+    // Apply viewMode & layoutMode state based on loaded values
+    const loadedViewMode = savedGraph.viewMode || (savedGraph.layoutMode === 'free' ? '3d' : '2d');
+    setViewMode(loadedViewMode);
+    if (loadedViewMode === '3d') {
+      setLayoutMode3D(savedGraph.layoutMode as 'free' | 'hierarchical' | 'radial');
+    } else {
+      setLayoutMode(savedGraph.layoutMode as 'hierarchical' | 'radial');
+    }
     
     // Set selectedNode to the root node of the loaded graph
     const rootNode = loadedNodes.find(n => n.isRoot) || loadedNodes[0];
@@ -1073,30 +1092,57 @@ export default function App() {
       
       {/* 1. Core Force-Directed Canvas Layer */}
       {nodes.length > 0 ? (
-        <WikiGraph
-          nodes={visibleNodes}
-          links={visibleLinks}
-          layoutMode={layoutMode}
-          onNodeClick={handleNodeClick}
-          onBackgroundClick={() => {
-            setSelectedNode(null);
-            setDeepestActiveId(null);
-            setIsSidebarOpen(false);
-            if (isMobile) {
-              setIsHistoryOpen(false);
-              setIsSubArticlesOpen(false);
-            }
-          }}
-          onNodeRightClick={handleNodeRightClick}
-          onMarkDeadEnd={handleMarkDeadEnd}
-          selectedNode={selectedNode}
-          resetZoomTrigger={resetZoomTrigger}
-          focusSelectedTrigger={focusSelectedTrigger}
-          fitScreenTrigger={fitScreenTrigger}
-          focusRootTrigger={focusRootTrigger}
-          expandedNodeIds={expandedNodeIds}
-          onToggleNodeExpand={handleToggleNodeExpand}
-        />
+        viewMode === '3d' ? (
+          <WikiGraph3D
+            nodes={nodes}
+            links={links}
+            onNodeClick={handleNodeClick}
+            onBackgroundClick={() => {
+              setSelectedNode(null);
+              setDeepestActiveId(null);
+              setIsSidebarOpen(false);
+              if (isMobile) {
+                setIsHistoryOpen(false);
+                setIsSubArticlesOpen(false);
+              }
+            }}
+            onNodeRightClick={handleNodeRightClick}
+            onMarkDeadEnd={handleMarkDeadEnd}
+            selectedNode={selectedNode}
+            resetZoomTrigger={resetZoomTrigger}
+            focusSelectedTrigger={focusSelectedTrigger}
+            fitScreenTrigger={fitScreenTrigger}
+            focusRootTrigger={focusRootTrigger}
+            expandedNodeIds={expandedNodeIds}
+            onToggleNodeExpand={handleToggleNodeExpand}
+            activePathSet={activePathSet}
+          />
+        ) : (
+          <WikiGraph
+            nodes={visibleNodes}
+            links={visibleLinks}
+            layoutMode={layoutMode}
+            onNodeClick={handleNodeClick}
+            onBackgroundClick={() => {
+              setSelectedNode(null);
+              setDeepestActiveId(null);
+              setIsSidebarOpen(false);
+              if (isMobile) {
+                setIsHistoryOpen(false);
+                setIsSubArticlesOpen(false);
+              }
+            }}
+            onNodeRightClick={handleNodeRightClick}
+            onMarkDeadEnd={handleMarkDeadEnd}
+            selectedNode={selectedNode}
+            resetZoomTrigger={resetZoomTrigger}
+            focusSelectedTrigger={focusSelectedTrigger}
+            fitScreenTrigger={fitScreenTrigger}
+            focusRootTrigger={focusRootTrigger}
+            expandedNodeIds={expandedNodeIds}
+            onToggleNodeExpand={handleToggleNodeExpand}
+          />
+        )
       ) : (
         /* Empty canvas whiteboard background */
         <div className="w-full h-full bg-grid-whiteboard relative overflow-hidden bg-slate-50" />
@@ -1177,38 +1223,75 @@ export default function App() {
       {nodes.length > 0 && (
         <div className="fixed bottom-20 left-4 md:bottom-4 md:left-4 z-30 bg-white/80 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-2 flex flex-col gap-2 pointer-events-auto transition-all hover:shadow-xl duration-300 max-w-xs">
           
-          {/* Layout Actions Row */}
-          <div className="flex gap-1">
+          {/* View Mode Switcher Row */}
+          <div className="flex gap-1 bg-slate-100/80 p-0.5 rounded-xl">
             <button
               type="button"
-              onClick={() => handleLayoutModeChange('hierarchical')}
-              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
-                layoutMode === 'hierarchical'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+              onClick={() => {
+                setViewMode('2d');
+                setResetZoomTrigger(prev => prev + 1);
+              }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                viewMode === '2d'
+                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/20'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
-              title="直線階層排列"
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span>階層排列</span>
+              <Eye className="w-3.5 h-3.5" />
+              <span>2D 視角</span>
             </button>
             <button
               type="button"
-              onClick={() => handleLayoutModeChange('radial')}
-              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
-                layoutMode === 'radial'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+              onClick={() => {
+                setViewMode('3d');
+                setResetZoomTrigger(prev => prev + 1);
+              }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                viewMode === '3d'
+                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/20'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
-              title="放射網絡排列"
             >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>放射排列</span>
+              <Box className="w-3.5 h-3.5" />
+              <span>3D 拓撲</span>
             </button>
           </div>
+          {/* Layout Actions Row (Only visible in 2D mode, 3D mode is locked to 3D Free layout) */}
+          {viewMode === '2d' && (
+            <>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleLayoutModeChange('hierarchical')}
+                  className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
+                    layoutMode === 'hierarchical'
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+                  }`}
+                  title="直線階層排列"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>階層排列</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLayoutModeChange('radial')}
+                  className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer ${
+                    layoutMode === 'radial'
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+                  }`}
+                  title="放射網絡排列"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>放射排列</span>
+                </button>
+              </div>
 
-          {/* Divider */}
-          <div className="h-px bg-slate-100 w-full" />
+              {/* Divider */}
+              <div className="h-px bg-slate-100 w-full" />
+            </>
+          )}
 
           {/* Camera Positioning Row */}
           <div className="flex justify-between gap-1 items-center px-1">
