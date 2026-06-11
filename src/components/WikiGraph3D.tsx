@@ -106,37 +106,41 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
   const createTextSprite = (
     label: string,
     isRoot: boolean,
-    isDeadEnd: boolean
+    isSelected: boolean,
+    textColor: string
   ) => {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) return new THREE.Sprite();
 
-    const fontSize = isRoot ? 24 : 18;
-    context.font = `bold ${fontSize}px sans-serif`;
+    // High-DPI Scale factor to fix blurry text in WebGL
+    const scaleMultiplier = 6;
+    const baseFontSize = isRoot ? 24 : isSelected ? 20 : 13;
+    const canvasFontSize = baseFontSize * scaleMultiplier;
+
+    context.font = `bold ${canvasFontSize}px sans-serif`;
     
     // Truncate label if too long
     const formattedLabel = label.length > 15 ? `${label.slice(0, 14)}...` : label;
     const textWidth = context.measureText(formattedLabel).width;
 
-    canvas.width = textWidth + 10;
-    canvas.height = fontSize + 10;
+    // Allocate canvas size based on high-DPI font size
+    canvas.width = textWidth + (20 * scaleMultiplier);
+    canvas.height = canvasFontSize + (20 * scaleMultiplier);
 
     // Redefine font after canvas resizing
-    context.font = `bold ${fontSize}px sans-serif`;
+    context.font = `bold ${canvasFontSize}px sans-serif`;
 
-    // Add heavy dark shadow for high contrast on transparent background
-    context.shadowColor = 'rgba(0, 0, 0, 0.9)';
-    context.shadowBlur = 4;
-    context.shadowOffsetX = 1.5;
-    context.shadowOffsetY = 1.5;
-
-    // Draw text label
-    context.fillStyle = isDeadEnd 
-      ? '#64748b' // slate-500
-      : '#f8fafc'; // slate-50 (white)
+    // Draw dark outline for high contrast and readability on any background (scaled proportionately)
+    context.strokeStyle = 'rgba(2, 2, 8, 0.85)';
+    context.lineWidth = 3.5 * scaleMultiplier;
+    context.lineJoin = 'round';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
+    context.strokeText(formattedLabel, canvas.width / 2, canvas.height / 2);
+
+    // Draw text label with node color matching reference image
+    context.fillStyle = textColor;
     context.fillText(formattedLabel, canvas.width / 2, canvas.height / 2);
 
     // Create Three.js Texture & Sprite
@@ -150,9 +154,9 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     });
     const sprite = new THREE.Sprite(spriteMaterial);
     
-    // Scale sprite to fit in 3D scene (aspect ratio preserved)
-    const scaleFactor = 0.15;
-    sprite.scale.set(canvas.width * scaleFactor, canvas.height * scaleFactor, 1);
+    // Scale sprite down by the same multiplier to keep original 3D dimensions but sharp resolution
+    const spriteScaleFactor = 0.15 / scaleMultiplier;
+    sprite.scale.set(canvas.width * spriteScaleFactor, canvas.height * spriteScaleFactor, 1);
 
     return sprite;
   };
@@ -300,19 +304,33 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     }
   }, [nodes]);
 
-  // 1d. Lock OrbitControls rotation target pivot to the selected node on left click
+  // 1d. Lock OrbitControls rotation target pivot to the selected node on left click, or to graph centroid when no selection
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handleMouseDown = (e: MouseEvent) => {
       // Trigger on Left Mouse Click, and Shift key must NOT be pressed (Shift + Left is PAN)
-      if (e.button === 0 && !e.shiftKey && graphRef.current && selectedNodeIdRef.current) {
+      if (e.button === 0 && !e.shiftKey && graphRef.current) {
         const controls = graphRef.current.controls();
         if (controls) {
-          const selNode = nodes.find(n => n.id === selectedNodeIdRef.current);
-          if (selNode && selNode.x !== undefined && selNode.y !== undefined && selNode.z !== undefined) {
-            controls.target.set(selNode.x, selNode.y, selNode.z);
+          if (selectedNodeIdRef.current) {
+            const selNode = nodes.find(n => n.id === selectedNodeIdRef.current);
+            if (selNode && selNode.x !== undefined && selNode.y !== undefined && selNode.z !== undefined) {
+              controls.target.set(selNode.x, selNode.y, selNode.z);
+            }
+          } else {
+            // Calculate center of all nodes (centroid)
+            const validNodes = nodes.filter(n => n.x !== undefined && n.y !== undefined && n.z !== undefined);
+            if (validNodes.length > 0) {
+              const sumX = validNodes.reduce((sum, n) => sum + (n.x ?? 0), 0);
+              const sumY = validNodes.reduce((sum, n) => sum + (n.y ?? 0), 0);
+              const sumZ = validNodes.reduce((sum, n) => sum + (n.z ?? 0), 0);
+              const count = validNodes.length;
+              controls.target.set(sumX / count, sumY / count, sumZ / count);
+            } else {
+              controls.target.set(0, 0, 0);
+            }
           }
         }
       }
@@ -346,7 +364,7 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     if (!graphRef.current) return;
     const graph = graphRef.current;
 
-    // Node Render Customization: Colored Low-Poly Spheres + Floating Text Sprites (Picture style)
+    // Node Render Customization: Colored Matte Spheres + Centered Text Sprites (Matching Reference Image Style)
     graph.nodeThreeObject((node: any) => {
       const isSelected = selectedNodeIdRef.current === node.id;
       const isRoot = node.isRoot;
@@ -354,24 +372,35 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       const isLoaded = node.loaded;
       const isLoading = node.loading;
 
-      // Determine state color matching user's reference image
-      // Yellow/Gold for root, green for loaded, blue for unloaded, red for dead ends, cyan for loading
-      let color = '#3b82f6'; // Default Blue (Unloaded)
-      if (isLoading) color = '#06b6d4'; // Cyan
-      else if (isRoot) color = '#eab308'; // Yellow
-      else if (isDeadEnd) color = '#ef4444'; // Red
-      else if (isLoaded) color = '#22c55e'; // Green
+      // Determine state colors matching the reference image's color styling
+      // The spheres are dark, desaturated versions, and the text labels are bright, saturated versions of the same color.
+      let sphereColor = '#1e3e62'; // Default Unloaded: dark steel blue
+      let textColor = '#60a5fa';   // Bright sky blue
+
+      if (isLoading) {
+        sphereColor = '#134e5e';   // Muted dark teal
+        textColor = '#22d3ee';     // Bright teal
+      } else if (isRoot) {
+        sphereColor = '#806010';   // Muted dark gold
+        textColor = '#ffd83b';     // Bright gold
+      } else if (isDeadEnd) {
+        sphereColor = '#7a2222';   // Muted dark red
+        textColor = '#ff5c5c';     // Bright red
+      } else if (isLoaded) {
+        sphereColor = '#8c5858';   // Muted dark rose/pink (Les Miserables cluster style)
+        textColor = '#fda4af';     // Bright rose/pink
+      }
 
       const group = new THREE.Group();
 
-      // A. Sphere Mesh with flatShading to create the faceted look seen in the images
+      // A. Sphere Mesh with smooth shading and matte material properties
       const radius = isRoot ? 7.5 : isSelected ? 6.5 : 5.0;
-      const sphereGeom = new THREE.SphereGeometry(radius, 12, 12);
+      const sphereGeom = new THREE.SphereGeometry(radius, 32, 32);
       const sphereMat = new THREE.MeshStandardMaterial({
-        color: color,
-        roughness: 0.35,
-        metalness: 0.15,
-        flatShading: true // Faceted polygon shading
+        color: sphereColor,
+        roughness: 0.7, // Matte texture matching reference image
+        metalness: 0.1,  // Low metalness
+        flatShading: false // Smooth rendering
       });
       const sphere = new THREE.Mesh(sphereGeom, sphereMat);
       group.add(sphere);
@@ -380,65 +409,23 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       if (isSelected) {
         const ringGeom = new THREE.SphereGeometry(radius + 2, 8, 8);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: '#fbbf24', // Gold outline glow
+          color: textColor, // Matching bright state color
           wireframe: true,
           transparent: true,
-          opacity: 0.3
+          opacity: 0.35
         });
         const ring = new THREE.Mesh(ringGeom, ringMat);
         group.add(ring);
       }
 
-      // C. Floating plain text label sprite (positioned slightly above sphere)
-      const sprite = createTextSprite(node.label, isRoot, isDeadEnd);
-      sprite.position.set(0, radius + 4.5, 0);
+      // C. Floating plain text label sprite (positioned directly on the sphere)
+      const sprite = createTextSprite(node.label, isRoot, isSelected, textColor);
+      sprite.position.set(0, 0, 0); // Centered exactly on the node as in the reference image
       group.add(sprite);
 
       return group;
     });
 
-    // Link Design
-    graph
-      .linkColor((link: any) => {
-        const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-        const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-        
-        // Highlight active pathway or selected links in indigo-400
-        const isSelectedPath = selectedNodeIdRef.current && (selectedNodeIdRef.current === sourceId || selectedNodeIdRef.current === targetId);
-        const isOnActivePath = activePathSet.has(sourceId) && activePathSet.has(targetId);
-
-        return isSelectedPath || isOnActivePath ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)';
-      })
-      .linkWidth((link: any) => {
-        const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-        const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-        const isSelectedPath = selectedNodeIdRef.current && (selectedNodeIdRef.current === sourceId || selectedNodeIdRef.current === targetId);
-        return isSelectedPath ? 1.0 : 0.6;
-      })
-      // Arrow Indicators (rendered as small dots in the middle of links matching the picture)
-      .linkDirectionalArrowLength(2.2)
-      .linkDirectionalArrowColor((link: any) => {
-        const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-        const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-        const isSelectedPath = selectedNodeIdRef.current && (selectedNodeIdRef.current === sourceId || selectedNodeIdRef.current === targetId);
-        return isSelectedPath ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.45)';
-      })
-      .linkDirectionalArrowRelPos(0.5) // Exactly in the middle, as shown in the picture!
-      // Animated Particles along active path to show flow
-      .linkDirectionalParticles((link: any) => {
-        const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-        const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-        
-        const isSelectedPath = selectedNodeIdRef.current && (selectedNodeIdRef.current === sourceId || selectedNodeIdRef.current === targetId);
-        const isOnActivePath = activePathSet.has(sourceId) && activePathSet.has(targetId);
-
-        if (isSelectedPath) return 3;
-        if (isOnActivePath) return 2;
-        return 0; // No particles on inactive links
-      })
-      .linkDirectionalParticleWidth(1.8)
-      .linkDirectionalParticleSpeed(0.005)
-      .linkDirectionalParticleColor(() => '#fbbf24'); // Golden particles
 
     // Adjust core physics parameters
     graph.d3Force('charge').strength(-150);
