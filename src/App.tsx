@@ -80,6 +80,7 @@ export default function App() {
   } = useWikiGraph(user);
 
   const rootNode = nodes.find(n => n.isRoot) || nodes[0];
+  const lastClickedNode = clickHistory[clickHistory.length - 1] || null;
 
   return (
     <main className="w-full h-full relative overflow-hidden bg-slate-50">
@@ -172,17 +173,20 @@ export default function App() {
 
       {/* 3. Sliding Detail Reader Panel */}
       <DetailSidebar
-        node={selectedNode}
+        node={selectedNode || lastClickedNode}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onExplore={handleExplore}
         onSetRoot={handleSetRoot}
         onRemove={handleRemoveNode}
         onMarkDeadEnd={handleMarkDeadEnd}
-        connectedLinksCount={selectedNode ? getConnectedLinksCount(selectedNode.id) : 0}
+        connectedLinksCount={selectedNode ? getConnectedLinksCount(selectedNode.id) : (lastClickedNode ? getConnectedLinksCount(lastClickedNode.id) : 0)}
         onReSearch={handleReSearch}
-        isExpanded={selectedNode ? expandedNodeIds.has(selectedNode.id) : false}
-        onToggleExpand={() => selectedNode && handleToggleNodeExpand(selectedNode.id)}
+        isExpanded={selectedNode ? expandedNodeIds.has(selectedNode.id) : (lastClickedNode ? expandedNodeIds.has(lastClickedNode.id) : false)}
+        onToggleExpand={() => {
+          const activeNode = selectedNode || lastClickedNode;
+          if (activeNode) handleToggleNodeExpand(activeNode.id);
+        }}
         onUpdateNodeLabel={handleUpdateNodeLabel}
       />
 
@@ -214,8 +218,8 @@ export default function App() {
         />
       )}
 
-      {/* Floating Sidebar Toggle Button (shown only when selectedNode is set but sidebar is closed) */}
-      {selectedNode && !isSidebarOpen && (
+      {/* Floating Sidebar Toggle Button (always shown when graph has nodes and sidebar is closed) */}
+      {nodes.length > 0 && !isSidebarOpen && (
         <SidebarToggleButton
           onClick={() => {
             setIsSidebarOpen(true);

@@ -198,7 +198,6 @@ export function useGraphOperations({
 
   const handleNodeClick = useCallback((node: WikiNode) => {
     setSelectedNode(node);
-    setIsSidebarOpen(true);
     setContextMenu(null);
     setDeepestActiveId(node.id);
     addToHistory(node);
@@ -332,7 +331,6 @@ export function useGraphOperations({
 
     setSelectedNode(newNode);
     setDeepestActiveId(newNode.id);
-    setIsSidebarOpen(true);
     if (isMobile) {
       setIsHistoryOpen(false);
       setIsSubArticlesOpen(false);
@@ -488,7 +486,6 @@ export function useGraphOperations({
 
   const handleSetRoot = async (node: WikiNode) => {
     setSelectedNode(null);
-    setIsSidebarOpen(true);
     setContextMenu(null);
     if (isMobile) {
       setIsHistoryOpen(false);
