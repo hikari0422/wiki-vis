@@ -5,7 +5,6 @@ import { DetailSidebar } from './components/DetailSidebar';
 import { ContextMenu } from './components/ContextMenu';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SubArticlesPanel } from './components/SubArticlesPanel';
-import { PathTimeline } from './components/PathTimeline';
 import { UserAuth } from './components/UserAuth';
 import { LayoutCameraSelector } from './components/LayoutCameraSelector';
 import { SidebarToggleButton } from './components/SidebarToggleButton';
@@ -22,7 +21,7 @@ export default function App() {
     nodes,
     links,
     limit,
-    setLimit,
+    changeLimit,
     layoutMode,
     viewMode,
     setViewMode,
@@ -68,7 +67,6 @@ export default function App() {
     visibleNodes,
     visibleLinks,
     getConnectedLinksCount,
-    getActivePathList,
     resetZoomTrigger,
     setResetZoomTrigger,
     focusSelectedTrigger,
@@ -155,7 +153,7 @@ export default function App() {
         nodeCount={nodes.length}
         linkCount={links.length}
         limit={limit}
-        onLimitChange={setLimit}
+        onLimitChange={changeLimit}
         searchLoading={searchLoading}
         hasNodes={nodes.length > 0}
         isHistoryOpen={isHistoryOpen}
@@ -230,12 +228,6 @@ export default function App() {
           }}
         />
       )}
-
-      {/* 7. Bottom Center Breadcrumb Exploration Timeline */}
-      <PathTimeline
-        path={getActivePathList()}
-        onNodeClick={handleNodeClick}
-      />
     </main>
   );
 }

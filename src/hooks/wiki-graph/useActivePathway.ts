@@ -70,47 +70,9 @@ export function useActivePathway(
       return visibleNodesSet.has(src) && visibleNodesSet.has(tgt);
     });
   }, [links, visibleNodes]);
-
-  const getActivePathList = useCallback((): WikiNode[] => {
-    const pathList: WikiNode[] = [];
-    let currentId = deepestActiveId || selectedNode?.id;
-    
-    if (!currentId && nodes.length > 0) {
-      const root = nodes.find(n => n.isRoot || n.depth === 0) || nodes[0];
-      currentId = root.id;
-    }
-
-    if (!currentId) return pathList;
-
-    let tempId: string | null = currentId;
-    let iterations = 0;
-    while (tempId && iterations < 100) {
-      const foundNode = nodes.find(n => n.id === tempId);
-      if (foundNode) {
-        pathList.unshift(foundNode);
-      }
-      
-      const parentLink = links.find(l => {
-        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
-        return tgt === tempId;
-      });
-      
-      if (parentLink) {
-        const src = typeof parentLink.source === 'string' ? parentLink.source : parentLink.source.id;
-        tempId = src;
-      } else {
-        tempId = null;
-      }
-      iterations++;
-    }
-
-    return pathList;
-  }, [deepestActiveId, selectedNode?.id, nodes, links]);
-
   return {
     activePathSet,
     visibleNodes,
     visibleLinks,
-    getActivePathList,
   };
 }

@@ -112,12 +112,122 @@ export function useWikiGraph(user: User | null) {
     }
   }, [panelState]);
 
+  const rebuildGraph = useCallback((currentNodes: WikiNode[], currentLinks: WikiLink[], currentLimit: number) => {
+    const rootNodes = currentNodes.filter(n => n.isRoot);
+    if (rootNodes.length === 0 && currentNodes.length > 0) {
+      rootNodes.push(currentNodes[0]);
+    }
+    if (rootNodes.length === 0) return { nodes: currentNodes, links: currentLinks };
+
+    const preservedIds = new Set<string>();
+    if (selectedNode) preservedIds.add(selectedNode.id);
+    clickHistory.forEach(n => preservedIds.add(n.id));
+    expandedNodeIds.forEach(id => preservedIds.add(id));
+    Object.keys(exploredLinksMap).forEach(id => preservedIds.add(id));
+    rootNodes.forEach(n => preservedIds.add(n.id));
+
+    const nodeMap = new Map(currentNodes.map(n => [n.id, n]));
+    const newNodesMap = new Map<string, WikiNode>();
+    const newLinks: WikiLink[] = [];
+    const queue: string[] = [];
+    const visited = new Set<string>();
+
+    rootNodes.forEach(root => {
+      newNodesMap.set(root.id, root);
+      queue.push(root.id);
+      visited.add(root.id);
+    });
+
+    while (queue.length > 0) {
+      const parentId = queue.shift()!;
+      const parentNode = nodeMap.get(parentId);
+      if (!parentNode) continue;
+
+      const wikiChildren = exploredLinksMap[parentId] || [];
+      const wikiChildrenSet = new Set(wikiChildren);
+
+      // Find manually added children from current links
+      const manualChildren: string[] = [];
+      currentLinks.forEach(l => {
+        const src = typeof l.source === 'string' ? l.source : l.source.id;
+        const tgt = typeof l.target === 'string' ? l.target : l.target.id;
+        if (src === parentId && !wikiChildrenSet.has(tgt)) {
+          manualChildren.push(tgt);
+        }
+      });
+
+      // Sliced wiki children based on new limit
+      const slicedWiki = currentLimit <= 0 ? wikiChildren : wikiChildren.slice(0, currentLimit);
+      
+      // We keep:
+      // 1. Sliced wiki children
+      // 2. Manually added children
+      // 3. Any wiki children that are preserved
+      const keptChildrenSet = new Set<string>([
+        ...slicedWiki,
+        ...manualChildren
+      ]);
+
+      wikiChildren.forEach(childId => {
+        if (preservedIds.has(childId)) {
+          keptChildrenSet.add(childId);
+        }
+      });
+
+      keptChildrenSet.forEach(childId => {
+        let childNode = nodeMap.get(childId);
+        if (!childNode) {
+          childNode = {
+            id: childId,
+            label: childId,
+            loaded: false,
+            url: `https://${parentNode.lang}.wikipedia.org/wiki/${encodeURIComponent(childId.replace(/ /g, '_'))}`,
+            lang: parentNode.lang,
+            variant: parentNode.variant,
+            depth: (parentNode.depth ?? 0) + 1,
+          };
+        }
+
+        if (!newNodesMap.has(childId)) {
+          newNodesMap.set(childId, childNode);
+        }
+
+        newLinks.push({
+          source: parentId,
+          target: childId,
+        });
+
+        if (!visited.has(childId)) {
+          visited.add(childId);
+          queue.push(childId);
+        }
+      });
+    }
+
+    return {
+      nodes: Array.from(newNodesMap.values()),
+      links: newLinks,
+    };
+  }, [exploredLinksMap, selectedNode, clickHistory, expandedNodeIds]);
+
+  const changeLimit = useCallback((newLimit: number) => {
+    setLimit(newLimit);
+    setIsDirty(true);
+    
+    if (nodes.length === 0) return;
+
+    const { nodes: rebuiltNodes, links: rebuiltLinks } = rebuildGraph(nodes, links, newLimit);
+    setNodes(rebuiltNodes);
+    setLinks(rebuiltLinks);
+  }, [nodes, links, rebuildGraph]);
+
   return {
     // States
     nodes,
     links,
     limit,
     setLimit,
+    changeLimit,
     layoutMode,
     setLayoutMode,
     viewMode,
@@ -182,7 +292,6 @@ export function useWikiGraph(user: User | null) {
     activePathSet: activePathway.activePathSet,
     visibleNodes: activePathway.visibleNodes,
     visibleLinks: activePathway.visibleLinks,
-    getActivePathList: activePathway.getActivePathList,
     getConnectedLinksCount,
   };
 }
