@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, setDoc, increment, getDoc, orderBy, limit } from 'firebase/firestore';
 
 // Firebase configuration using Vite environment variables
 const firebaseConfig = {
@@ -167,5 +167,78 @@ export const deleteSavedGraph = async (docId: string) => {
   } catch (error) {
     console.error('Error deleting graph:', error);
     throw error;
+  }
+};
+
+/**
+ * 紀錄全站單一節點的點擊次數 (Global Node Stats)
+ */
+export const recordNodeClick = async (title: string) => {
+  if (!db) return;
+  try {
+    // 標題可能包含斜線或特殊字元，Firestore 文件 ID 不允許包含斜線
+    const safeId = encodeURIComponent(title);
+    const docRef = doc(db, 'global_node_stats', safeId);
+    await setDoc(docRef, {
+      title,
+      clickCount: increment(1),
+      lastClicked: Timestamp.now()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error recording node click:', error);
+  }
+};
+
+/**
+ * 紀錄單次探索的總結 (Global Session Stats)
+ */
+export const recordSessionStats = async (nodesCount: number, maxDepth: number) => {
+  if (!db || nodesCount <= 0) return;
+  try {
+    const docRef = doc(db, 'global_metrics', 'overall');
+    await setDoc(docRef, {
+      totalSessions: increment(1),
+      totalNodesExplored: increment(nodesCount),
+      totalDepthSum: increment(maxDepth)
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error recording session stats:', error);
+  }
+};
+
+/**
+ * 取得全站統計數據 (Top 10 Nodes & Averages)
+ */
+export const getGlobalStats = async () => {
+  if (!db) return { topNodes: [], averageNodes: 0, averageDepth: 0 };
+  
+  try {
+    // 1. Get average metrics
+    const metricsRef = doc(db, 'global_metrics', 'overall');
+    const metricsSnap = await getDoc(metricsRef);
+    let averageNodes = 0;
+    let averageDepth = 0;
+    
+    if (metricsSnap.exists()) {
+      const data = metricsSnap.data();
+      if (data.totalSessions > 0) {
+        averageNodes = Math.round((data.totalNodesExplored / data.totalSessions) * 10) / 10;
+        averageDepth = Math.round((data.totalDepthSum / data.totalSessions) * 10) / 10;
+      }
+    }
+
+    // 2. Get top 10 nodes
+    const nodesRef = collection(db, 'global_node_stats');
+    const q = query(nodesRef, orderBy('clickCount', 'desc'), limit(10));
+    const nodeSnaps = await getDocs(q);
+    const topNodes = nodeSnaps.docs.map(d => ({
+      title: d.data().title,
+      clickCount: d.data().clickCount
+    }));
+
+    return { topNodes, averageNodes, averageDepth };
+  } catch (error) {
+    console.error('Error getting global stats:', error);
+    return { topNodes: [], averageNodes: 0, averageDepth: 0 };
   }
 };

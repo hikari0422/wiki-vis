@@ -6,6 +6,7 @@ import {
   fetchWikiLinks,
   resolveCanonicalTitle,
 } from '../../services/wikiApi';
+import { recordNodeClick, recordSessionStats } from '../../services/firebase';
 
 interface UseGraphOperationsProps {
   nodes: WikiNode[];
@@ -57,6 +58,8 @@ export function useGraphOperations({
 
   const handleExplore = async (node: WikiNode) => {
     if (node.loaded || node.loading || node.isDeadEnd) return;
+
+    recordNodeClick(node.label || node.id);
 
     setNodes((prevNodes) =>
       prevNodes.map((n) => (n.id === node.id ? { ...n, loading: true } : n))
@@ -201,6 +204,8 @@ export function useGraphOperations({
     setContextMenu(null);
     setDeepestActiveId(node.id);
     addToHistory(node);
+    
+    recordNodeClick(node.label || node.id);
 
     if (isMobile) {
       setIsHistoryOpen(false);
@@ -238,6 +243,11 @@ export function useGraphOperations({
   }, [setContextMenu]);
 
   const handleSearch = async (input: string, searchLang: string) => {
+    if (nodes.length > 0) {
+      const maxDepth = Math.max(0, ...nodes.map(n => n.depth ?? 0));
+      recordSessionStats(nodes.length, maxDepth);
+    }
+
     setSearchLoading(true);
     setContextMenu(null);
     setSelectedNode(null);
@@ -286,6 +296,8 @@ export function useGraphOperations({
       
       setResetZoomTrigger((prev) => prev + 1);
       setIsDirty(true);
+
+      recordNodeClick(rootNode.label || rootNode.id);
 
     } catch (error) {
       console.error(error);
@@ -542,6 +554,11 @@ export function useGraphOperations({
   };
 
   const handleClearBoard = () => {
+    if (nodes.length > 0) {
+      const maxDepth = Math.max(0, ...nodes.map(n => n.depth ?? 0));
+      recordSessionStats(nodes.length, maxDepth);
+    }
+
     setNodes([]);
     setLinks([]);
     setSelectedNode(null);

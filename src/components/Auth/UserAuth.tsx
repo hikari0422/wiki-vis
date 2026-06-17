@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { User } from 'firebase/auth';
 import { LogOut, User as UserIcon, Mail, AlertTriangle, ShieldAlert, FolderOpen } from 'lucide-react';
-import { signInWithGoogle, logout, isConfigured, type SavedGraph } from '../services/firebase';
-import { SavedHistoryModal } from './SavedHistoryModal';
-import { useLanguage } from '../hooks/useLanguage';
+import { signInWithGoogle, logout, isConfigured, type SavedGraph } from '../../services/firebase';
+import { SavedHistoryModal } from '../Panels/SavedHistoryModal';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface UserAuthProps {
   user: User | null;

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import type { WikiNode, WikiLink } from '../../types/wiki';
-import { fetchWikiSummary } from '../../services/wikiApi';
+import type { WikiNode, WikiLink } from '../../../types/wiki';
+import { fetchWikiSummary } from '../../../services/wikiApi';
 import {
   formatLabel,
   getNodeRadiusX,
@@ -10,7 +10,7 @@ import {
   getNodeClasses,
 } from './helpers';
 import { HoverCard } from './HoverCard';
-import { useLanguage } from '../../hooks/useLanguage';
+import { useLanguage } from '../../../hooks/useLanguage';
 
 interface WikiGraphProps {
   nodes: WikiNode[];

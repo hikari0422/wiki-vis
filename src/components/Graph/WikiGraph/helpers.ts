@@ -1,4 +1,4 @@
-import type { WikiNode, WikiLink } from '../../types/wiki';
+import type { WikiNode, WikiLink } from '../../../types/wiki';
 
 export function formatLabel(label: string | undefined | null): string {
   if (!label) return '';

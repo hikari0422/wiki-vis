@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Calendar, Network, Trash2, FolderOpen, Loader2, Clock } from 'lucide-react';
-import { getUserSavedGraphs, deleteSavedGraph, type SavedGraph } from '../services/firebase';
-import { useLanguage } from '../hooks/useLanguage';
+import { getUserSavedGraphs, deleteSavedGraph, type SavedGraph } from '../../services/firebase';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface SavedHistoryModalProps {
   userId: string;

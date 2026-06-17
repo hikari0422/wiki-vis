@@ -1,6 +1,6 @@
 import React from 'react';
-import type { WikiNode } from '../../types/wiki';
-import { useLanguage } from '../../hooks/useLanguage';
+import type { WikiNode } from '../../../types/wiki';
+import { useLanguage } from '../../../hooks/useLanguage';
 
 interface HoverCardProps {
   hoveredNode: WikiNode | null;

@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { WikiGraph } from './components/WikiGraph/WikiGraph';
-import { WikiGraph3D } from './components/WikiGraph3D';
-import { ControlPanel } from './components/ControlPanel';
-import { DetailSidebar } from './components/DetailSidebar';
-import { ContextMenu } from './components/ContextMenu';
-import { HistoryPanel } from './components/HistoryPanel';
-import { SubArticlesPanel } from './components/SubArticlesPanel';
-import { UserAuth } from './components/UserAuth';
-import { LayoutCameraSelector } from './components/LayoutCameraSelector';
-import { SidebarToggleButton } from './components/SidebarToggleButton';
-import { ThemeToggle } from './components/ThemeToggle';
-import { LanguageSelector } from './components/LanguageSelector';
+import { WikiGraph } from './components/Graph/WikiGraph/WikiGraph';
+import { WikiGraph3D } from './components/Graph/WikiGraph3D';
+import { ControlPanel } from './components/ControlPanel/ControlPanel';
+import { DetailSidebar } from './components/Panels/DetailSidebar';
+import { ContextMenu } from './components/Graph/ContextMenu';
+import { HistoryPanel } from './components/Panels/HistoryPanel';
+import { SubArticlesPanel } from './components/Panels/SubArticlesPanel';
+import { UserAuth } from './components/Auth/UserAuth';
+import { LayoutCameraSelector } from './components/Graph/LayoutCameraSelector';
+import { SidebarToggleButton } from './components/Common/SidebarToggleButton';
+import { ThemeToggle } from './components/Common/ThemeToggle';
+import { LanguageSelector } from './components/Common/LanguageSelector';
+import { GlobalStatsDashboard } from './components/Panels/GlobalStatsDashboard';
 
 import { useWikiAuth } from './hooks/useWikiAuth';
 import { useWikiGraph } from './hooks/wiki-graph';
@@ -38,6 +39,9 @@ export default function App() {
 
   // 1. Authentication hook
   const { user } = useWikiAuth();
+
+  // Global Stats state
+  const [isGlobalStatsOpen, setIsGlobalStatsOpen] = useState(false);
 
   // 2. Graph state machine hook
   const {
@@ -196,6 +200,8 @@ export default function App() {
         onSaveGraph={handleSaveGraph}
         saveLoading={saveLoading}
         rootTitle={rootNode?.id || ''}
+        isGlobalStatsOpen={isGlobalStatsOpen}
+        onToggleGlobalStats={() => setIsGlobalStatsOpen(!isGlobalStatsOpen)}
       />
 
       {/* 3. Sliding Detail Reader Panel */}
@@ -257,6 +263,12 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Global Stats Dashboard Modal */}
+      <GlobalStatsDashboard
+        isOpen={isGlobalStatsOpen}
+        onClose={() => setIsGlobalStatsOpen(false)}
+      />
     </main>
   );
 }

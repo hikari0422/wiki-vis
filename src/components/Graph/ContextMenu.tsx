@@ -1,7 +1,7 @@
 import React from 'react';
 import { ExternalLink, Target, Trash2, Network } from 'lucide-react';
-import { useLanguage } from '../hooks/useLanguage';
-import type { WikiNode } from '../types/wiki';
+import { useLanguage } from '../../hooks/useLanguage';
+import type { WikiNode } from '../../types/wiki';
 
 interface ContextMenuProps {
   x: number;

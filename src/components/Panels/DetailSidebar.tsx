@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X, ExternalLink, Target, Trash2, Network, Loader2, BookOpen, RotateCw } from 'lucide-react';
-import type { WikiNode } from '../types/wiki';
-import { fetchWikiSummary } from '../services/wikiApi';
-import { useLanguage } from '../hooks/useLanguage';
+import type { WikiNode } from '../../types/wiki';
+import { fetchWikiSummary } from '../../services/wikiApi';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface DetailSidebarProps {
   node: WikiNode | null;
