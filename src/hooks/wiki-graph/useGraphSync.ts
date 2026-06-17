@@ -21,10 +21,13 @@ interface UseGraphSyncProps {
   setLayoutMode3D: React.Dispatch<React.SetStateAction<'free' | 'hierarchical' | 'radial'>>;
   setSelectedNode: React.Dispatch<React.SetStateAction<WikiNode | null>>;
   setDeepestActiveId: React.Dispatch<React.SetStateAction<string | null>>;
-  addToHistory: (node: WikiNode) => void;
   isDirty: boolean;
   setIsDirty: React.Dispatch<React.SetStateAction<boolean>>;
   setResetZoomTrigger: React.Dispatch<React.SetStateAction<number>>;
+  exploredLinksMap: { [nodeId: string]: string[] };
+  setExploredLinksMap: React.Dispatch<React.SetStateAction<{ [nodeId: string]: string[] }>>;
+  clickHistory: WikiNode[];
+  setClickHistory: React.Dispatch<React.SetStateAction<WikiNode[]>>;
 }
 
 export function useGraphSync({
@@ -45,17 +48,20 @@ export function useGraphSync({
   setLayoutMode3D,
   setSelectedNode,
   setDeepestActiveId,
-  addToHistory,
   isDirty,
   setIsDirty,
   setResetZoomTrigger,
+  exploredLinksMap,
+  setExploredLinksMap,
+  clickHistory,
+  setClickHistory,
 }: UseGraphSyncProps) {
   const [saveLoading, setSaveLoading] = useState<boolean>(false);
 
-  const stateRef = useRef({ user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading });
+  const stateRef = useRef({ user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading, exploredLinksMap, clickHistory });
   useEffect(() => {
-    stateRef.current = { user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading };
-  }, [user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading]);
+    stateRef.current = { user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading, exploredLinksMap, clickHistory };
+  }, [user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading, exploredLinksMap, clickHistory]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -101,6 +107,18 @@ export function useGraphSync({
               layoutMode: state.viewMode === '3d' ? state.layoutMode3D : state.layoutMode,
               limit: state.limit,
               viewMode: state.viewMode,
+              exploredLinksMap: state.exploredLinksMap,
+              clickHistory: state.clickHistory.map(n => ({
+                id: n.id,
+                label: n.label,
+                loaded: n.loaded,
+                url: n.url,
+                isRoot: n.isRoot || false,
+                lang: n.lang,
+                variant: n.variant,
+                depth: n.depth,
+                isDeadEnd: n.isDeadEnd || false,
+              })),
             }).then(() => {
               setSaveLoading(false);
               setIsDirty(false);
@@ -163,6 +181,18 @@ export function useGraphSync({
         layoutMode: viewMode === '3d' ? layoutMode3D : layoutMode,
         limit,
         viewMode,
+        exploredLinksMap,
+        clickHistory: clickHistory.map(n => ({
+          id: n.id,
+          label: n.label,
+          loaded: n.loaded,
+          url: n.url,
+          isRoot: n.isRoot || false,
+          lang: n.lang,
+          variant: n.variant,
+          depth: n.depth,
+          isDeadEnd: n.isDeadEnd || false,
+        })),
       });
       setIsDirty(false);
     } catch (error: any) {
@@ -186,6 +216,20 @@ export function useGraphSync({
     setLinks(loadedLinks);
     setExpandedNodeIds(new Set(savedGraph.expandedNodeIds));
     setLimit(savedGraph.limit);
+    setExploredLinksMap(savedGraph.exploredLinksMap || {});
+
+    if (savedGraph.clickHistory && savedGraph.clickHistory.length > 0) {
+      const loadedHistory: WikiNode[] = savedGraph.clickHistory.map(hNode => {
+        const matchingNode = loadedNodes.find(n => n.id === hNode.id);
+        return matchingNode || { ...hNode };
+      });
+      setClickHistory(loadedHistory);
+    } else {
+      const rootNode = loadedNodes.find(n => n.isRoot) || loadedNodes[0];
+      if (rootNode) {
+        setClickHistory([rootNode]);
+      }
+    }
 
     const loadedViewMode = savedGraph.viewMode || (savedGraph.layoutMode === 'free' ? '3d' : '2d');
     setViewMode(loadedViewMode);
@@ -199,12 +243,11 @@ export function useGraphSync({
     if (rootNode) {
       setSelectedNode(rootNode);
       setDeepestActiveId(rootNode.id);
-      addToHistory(rootNode);
     }
 
     setResetZoomTrigger((prev) => prev + 1);
     setIsDirty(false);
-  }, [setNodes, setLinks, setExpandedNodeIds, setLimit, setViewMode, setLayoutMode3D, setLayoutMode, setSelectedNode, setDeepestActiveId, addToHistory, setResetZoomTrigger, setIsDirty]);
+  }, [setNodes, setLinks, setExpandedNodeIds, setLimit, setExploredLinksMap, setClickHistory, setViewMode, setLayoutMode3D, setLayoutMode, setSelectedNode, setDeepestActiveId, setResetZoomTrigger, setIsDirty]);
 
   return {
     saveLoading,

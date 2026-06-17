@@ -10,6 +10,7 @@ import { UserAuth } from './components/UserAuth';
 import { LayoutCameraSelector } from './components/LayoutCameraSelector';
 import { SidebarToggleButton } from './components/SidebarToggleButton';
 import { ThemeToggle } from './components/ThemeToggle';
+import { LanguageSelector } from './components/LanguageSelector';
 
 import { useWikiAuth } from './hooks/useWikiAuth';
 import { useWikiGraph } from './hooks/wiki-graph';
@@ -106,6 +107,7 @@ export default function App() {
     <main className="w-full h-full relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {/* Top Right Actions */}
       <div className="fixed top-4 right-4 z-40 flex items-center gap-2.5 pointer-events-none">
+        <LanguageSelector />
         <ThemeToggle theme={theme} toggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />
         <UserAuth user={user} onLoadGraph={handleLoadGraph} />
       </div>

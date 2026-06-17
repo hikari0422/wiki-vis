@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X, ExternalLink, Target, Trash2, Network, Loader2, BookOpen, RotateCw } from 'lucide-react';
 import type { WikiNode } from '../types/wiki';
 import { fetchWikiSummary } from '../services/wikiApi';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface DetailSidebarProps {
   node: WikiNode | null;
@@ -32,6 +33,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
   onToggleExpand,
   onUpdateNodeLabel,
 }) => {
+  const { t } = useLanguage();
   const [summary, setSummary] = useState<string>('');
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(false);
@@ -77,7 +79,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
       }
     } catch (error) {
       console.error('Failed to load page summary:', error);
-      setSummary('無法加載此維基條目的摘要內容。');
+      setSummary(t.failedSummary);
       setThumbnail(undefined);
     } finally {
       setLoading(false);
@@ -125,7 +127,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
         }
       } catch (error) {
         console.error('Failed to load page summary:', error);
-        setSummary('無法加載此維基條目的摘要內容。');
+        setSummary(t.failedSummary);
         setThumbnail(undefined);
       } finally {
         setLoading(false);
@@ -169,7 +171,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
               WIKIPEDIA ITEM
             </span>
             <span className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
-              語系: {node.lang.toUpperCase()}
+              {t.langPrefix}{node.lang.toUpperCase()}
             </span>
           </div>
 
@@ -191,9 +193,9 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
 
           {/* Loading Shimmer State */}
           {loading ? (
-            <div className="flex flex-col gap-3 py-6 justify-center items-center text-slate-400 dark:text-slate-500 text-sm">
+            <div className="flex flex-col gap-3 py-6 justify-center items-center text-slate-400 dark:text-slate-550 text-sm">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-2" />
-              <span>正在從 Wikipedia 載入摘要...</span>
+              <span>{t.loadingSummary}</span>
             </div>
           ) : (
             /* Summary Text Description */
@@ -205,17 +207,17 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
           {/* Graph Connection Stats */}
           <div className="border-t border-slate-100 dark:border-slate-800 pt-5 pb-2 mb-6">
             <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
-              白板狀態統計
+              {t.statsTitle}
             </h4>
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl">
-                <div className="text-slate-400 dark:text-slate-550 text-[10px] font-semibold mb-0.5">關聯連線數</div>
-                <div className="text-lg font-bold text-slate-805 dark:text-slate-200">{connectedLinksCount} 條</div>
+                <div className="text-slate-400 dark:text-slate-550 text-[10px] font-semibold mb-0.5">{t.linkedCount}</div>
+                <div className="text-lg font-bold text-slate-850 dark:text-slate-200">{connectedLinksCount}{t.connectedSuffix}</div>
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl">
-                <div className="text-slate-400 dark:text-slate-550 text-[10px] font-semibold mb-0.5">加載狀態</div>
+                <div className="text-slate-400 dark:text-slate-550 text-[10px] font-semibold mb-0.5">{t.loadingStatus}</div>
                 <div className={`text-xs font-bold ${node.loaded ? 'text-emerald-600 dark:text-emerald-450' : node.isDeadEnd ? 'text-slate-400 dark:text-slate-500' : 'text-indigo-600 dark:text-indigo-400'}`}>
-                  {node.loading ? '正在讀取...' : node.isDeadEnd ? '終點無外連' : node.loaded ? '已加載展開' : '未加載'}
+                  {node.loading ? t.statusLoading : node.isDeadEnd ? t.statusDeadEnd : node.loaded ? t.statusLoaded : t.statusNotLoaded}
                 </div>
               </div>
             </div>
@@ -227,7 +229,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition-all duration-300">
             <div className="flex items-center gap-2.5">
               <Network className={`w-4 h-4 transition-colors ${isExpanded ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-550'}`} />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">保持此分支網路展開 (鎖定)</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t.keepExpanded}</span>
             </div>
             <button
               type="button"
@@ -255,7 +257,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
               className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 dark:disabled:bg-indigo-850 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm shadow-md shadow-indigo-200 dark:shadow-none transition-all active:scale-[0.98]"
             >
               <Network className="w-4 h-4" />
-              展開此節點網絡
+              {t.expandNetwork}
             </button>
           )}
 
@@ -264,10 +266,10 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
             onClick={handleReSearchClick}
             disabled={node.loading}
             className="w-full bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm border border-indigo-200/50 dark:border-indigo-800/50 transition-all active:scale-[0.98]"
-            title="手動重新自維基百科搜尋此條目，並強制重新解析其內文的所有知識超連結與引言摘要"
+            title={t.researchTooltip}
           >
             <RotateCw className={`w-4 h-4 ${node.loading ? 'animate-spin' : ''}`} />
-            重新搜尋此節點
+            {t.researchNode}
           </button>
 
           {/* Action: Set as New Root */}
@@ -276,7 +278,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
             className="w-full bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-205 font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm transition-all active:scale-[0.98]"
           >
             <Target className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            重設以此為探索中心
+            {t.setAsRoot}
           </button>
 
           {/* Action: External wikipedia link */}
@@ -287,7 +289,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
             className="w-full bg-slate-100 dark:bg-slate-850 hover:bg-slate-200 dark:hover:bg-slate-750 border border-slate-200/40 dark:border-slate-700/40 text-slate-700 dark:text-slate-205 font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm transition-all active:scale-[0.98]"
           >
             <BookOpen className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            閱讀維基完整條目
+            {t.readFullArticle}
             <ExternalLink className="w-3 h-3 text-slate-400 dark:text-slate-500 -mt-0.5" />
           </a>
 
@@ -297,7 +299,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
             className="w-full bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-950/45 text-rose-600 dark:text-rose-400 font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm transition-all mt-2 active:scale-[0.98]"
           >
             <Trash2 className="w-4 h-4" />
-            從畫布中刪除節點
+            {t.removeNode}
           </button>
 
         </div>

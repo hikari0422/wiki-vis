@@ -1,6 +1,7 @@
 import React from 'react';
 import { History, ArrowRight } from 'lucide-react';
 import type { WikiNode } from '../types/wiki';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface HistoryPanelProps {
   history: WikiNode[];
@@ -15,6 +16,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   onNodeClick,
   isOpen,
 }) => {
+  const { t } = useLanguage();
   if (!isOpen || history.length === 0) return null;
 
   return (
@@ -23,7 +25,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2">
         <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 select-none">
           <History className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-          探索歷史軌跡
+          {t.historyTimelineTitle}
         </span>
         <span className="text-[9px] font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">
           {history.length}/10
@@ -58,7 +60,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
                   {node.id}
                 </div>
                 <span className={`text-[9px] block ${isCurrent ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'} font-semibold mt-0.5`}>
-                  深度: {node.depth ?? 0}
+                  {t.depthPrefix}{node.depth ?? 0}
                 </span>
               </div>
 

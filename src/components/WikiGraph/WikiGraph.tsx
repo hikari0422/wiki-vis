@@ -10,6 +10,7 @@ import {
   getNodeClasses,
 } from './helpers';
 import { HoverCard } from './HoverCard';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface WikiGraphProps {
   nodes: WikiNode[];
@@ -46,6 +47,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
   onToggleNodeExpand,
   theme,
 }) => {
+  const { t } = useLanguage();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gRef = useRef<SVGGElement | null>(null);
@@ -91,7 +93,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       } catch (error) {
         console.error('Failed to load hover preview:', error);
         setHoverCardData({
-          extract: '無法取得此條目的預覽資料。',
+          extract: t.hoverFailed,
         });
       }
     }, 350) as unknown as number;
@@ -750,7 +752,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                           }`}
                         />
                       </g>
-                      <title>{expandedNodeIds.has(node.id) ? "取消鎖定展開此分支" : "鎖定展開此分支網路"}</title>
+                      <title>{expandedNodeIds.has(node.id) ? t.unlockExpand : t.lockExpand}</title>
                     </g>
                   )}
 

@@ -5,6 +5,7 @@ import * as d3 from 'd3';
 import type { WikiNode, WikiLink } from '../types/wiki';
 import { fetchWikiSummary } from '../services/wikiApi';
 import { HoverCard } from './WikiGraph/HoverCard';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface WikiGraph3DProps {
   nodes: WikiNode[];
@@ -39,6 +40,7 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
   activePathSet,
   theme,
 }) => {
+  const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<any>(null);
   const mousePositionRef = useRef({ x: 0, y: 0 });
@@ -98,7 +100,7 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       } catch (error) {
         console.error('Failed to load hover preview in 3D:', error);
         setHoverCardData({
-          extract: '無法取得此條目的預覽資料。',
+          extract: t.hoverFailed,
         });
       }
     }, 350) as unknown as number;
@@ -305,12 +307,16 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     };
   }, []);
 
-  // 1c. Unlock all node coordinates when data changes to ensure they float freely in 3D Free layout
+  // 1c. Unlock all node coordinates and initialize Z-axis values if missing/flat to expand into 3D space
   useEffect(() => {
     nodes.forEach((node) => {
       node.fx = null;
       node.fy = null;
       node.fz = null;
+      // ponytail: randomize Z to break flat 2D plane symmetry and allow 3D forces to expand the graph
+      if (node.z === undefined || node.z === 0) {
+        node.z = (Math.random() - 0.5) * 60;
+      }
     });
     if (graphRef.current) {
       graphRef.current.d3ReheatSimulation();
@@ -489,7 +495,7 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
   useEffect(() => {
     if (!graphRef.current || resetZoomTrigger === 0) return;
     graphRef.current.cameraPosition(
-      { x: 0, y: 0, z: 220 }, // Reset position
+      { x: 0, y: -70, z: 200 }, // Slightly tilted reset position for 3D depth perception
       { x: 0, y: 0, z: 0 },   // Reset lookAt
       1200                    // transition ms
     );
@@ -514,7 +520,8 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       const dist = Math.hypot(x, y, z);
       tx = x * (1 + 75 / dist);
       ty = y * (1 + 75 / dist);
-      tz = z * (1 + 75 / dist);
+      // ponytail: add a Z offset (+35) to camera position to ensure tilted perspective and avoid edge-on flatness
+      tz = z * (1 + 75 / dist) + 35;
     }
 
     graphRef.current.cameraPosition({ x: tx, y: ty, z: tz }, { x, y, z }, 1200);
@@ -539,7 +546,8 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       const dist = Math.hypot(x, y, z);
       tx = x * (1 + 75 / dist);
       ty = y * (1 + 75 / dist);
-      tz = z * (1 + 75 / dist);
+      // ponytail: add a Z offset (+35) to camera position to ensure tilted perspective and avoid edge-on flatness
+      tz = z * (1 + 75 / dist) + 35;
     }
 
     graphRef.current.cameraPosition({ x: tx, y: ty, z: tz }, { x, y, z }, 1200);
@@ -556,7 +564,8 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     const y = rootNode.y ?? 0;
     const z = rootNode.z ?? 0;
 
-    graphRef.current.cameraPosition({ x: x, y: y, z: z + 90 }, { x, y, z }, 1200);
+    // ponytail: look at the root node from a tilted angle (y offset and z offset) rather than directly overhead
+    graphRef.current.cameraPosition({ x: x, y: y - 45, z: z + 75 }, { x, y, z }, 1200);
   }, [focusRootTrigger]);
 
   // Camera Event: Fit Screen

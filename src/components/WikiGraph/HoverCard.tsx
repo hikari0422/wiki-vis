@@ -1,5 +1,6 @@
 import React from 'react';
 import type { WikiNode } from '../../types/wiki';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface HoverCardProps {
   hoveredNode: WikiNode | null;
@@ -14,10 +15,11 @@ export const HoverCard: React.FC<HoverCardProps> = ({
   hoverCardData,
   darkMode = false,
 }) => {
+  const { t } = useLanguage();
   if (!hoveredNode || !hoverPosition) return null;
 
   const containerClass = darkMode
-    ? "fixed z-50 pointer-events-none w-72 bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-xl p-4 animate-in fade-in zoom-in-95 duration-200 text-left text-slate-100"
+    ? "fixed z-50 pointer-events-none w-72 bg-slate-900/90 backdrop-blur-xl border border-slate-700/55 rounded-2xl shadow-xl p-4 animate-in fade-in zoom-in-95 duration-200 text-left text-slate-100"
     : "fixed z-50 pointer-events-none w-72 bg-white/90 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-xl p-4 animate-in fade-in zoom-in-95 duration-200 text-left";
 
   const titleClass = darkMode
@@ -63,7 +65,7 @@ export const HoverCard: React.FC<HoverCardProps> = ({
       ) : (
         <div className="flex items-center gap-2 py-1.5 text-[11px] text-slate-400">
           <span className={spinnerClass}></span>
-          <span>正在加載預覽...</span>
+          <span>{t.hoverCardLoading}</span>
         </div>
       )}
     </div>

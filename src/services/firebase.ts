@@ -51,6 +51,8 @@ export interface SavedGraph {
   viewMode?: '2d' | '3d';
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+  exploredLinksMap?: { [nodeId: string]: string[] };
+  clickHistory?: any[];
 }
 
 /**
@@ -117,13 +119,16 @@ export const saveGraphToFirestore = async (graph: Omit<SavedGraph, 'createdAt' |
   // 2. Find if any graph matches the current rootTitle
   const matchedGraph = existing.find(g => g.rootTitle === graph.rootTitle);
 
+  // Sanitize graph to remove undefined values which Firestore rejects
+  const sanitizedGraph = JSON.parse(JSON.stringify(graph));
+
   try {
     if (matchedGraph && matchedGraph.id) {
       // Overwrite the existing document
       const docRef = doc(db, 'saved_graphs', matchedGraph.id);
       
       await setDoc(docRef, {
-        ...graph,
+        ...sanitizedGraph,
         createdAt: matchedGraph.createdAt || Timestamp.now(), // Preserve original creation time
         updatedAt: Timestamp.now(), // Update modification time
       });
@@ -138,7 +143,7 @@ export const saveGraphToFirestore = async (graph: Omit<SavedGraph, 'createdAt' |
       // Add new document
       const collRef = collection(db, 'saved_graphs');
       const docRef = await addDoc(collRef, {
-        ...graph,
+        ...sanitizedGraph,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
