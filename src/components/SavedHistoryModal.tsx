@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Calendar, Network, Trash2, FolderOpen, Loader2, Clock } from 'lucide-react';
 import { getUserSavedGraphs, deleteSavedGraph, type SavedGraph } from '../services/firebase';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface SavedHistoryModalProps {
   userId: string;
@@ -15,6 +16,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
   onClose,
   onLoadGraph,
 }) => {
+  const { language, t } = useLanguage();
   const [graphs, setGraphs] = useState<SavedGraph[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
       setGraphs(data);
     } catch (err: any) {
       console.error(err);
-      setError('載入雲端存檔失敗，請確認資料庫已正確設定。');
+      setError(t.loadSavedError);
     } finally {
       setLoading(false);
     }
@@ -44,7 +46,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
 
   const handleDelete = async (e: React.MouseEvent, docId: string) => {
     e.stopPropagation();
-    if (!window.confirm('確定要刪除此存檔嗎？此動作無法復原。')) return;
+    if (!window.confirm(t.confirmDeleteSaved)) return;
 
     setDeletingId(docId);
     try {
@@ -52,16 +54,16 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
       setGraphs((prev) => prev.filter((g) => g.id !== docId));
     } catch (err) {
       console.error(err);
-      alert('刪除失敗，請稍後再試。');
+      alert(t.deleteFailed);
     } finally {
       setDeletingId(null);
     }
   };
 
   const formatDate = (timestamp: any) => {
-    if (!timestamp) return '未知時間';
+    if (!timestamp) return t.unknownTime;
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleString('zh-TW', {
+    return date.toLocaleString(language === 'zh' ? 'zh-TW' : 'en-US', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -81,10 +83,10 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
           <div className="flex flex-col">
             <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-200 tracking-tight flex items-center gap-2">
               <FolderOpen className="w-5.5 h-5.5 text-indigo-600 dark:text-indigo-400" />
-              我的歷史存檔紀錄
+              {t.historyTitle}
             </h2>
             <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">
-              儲存數量限制：{graphs.length} / 20 個
+              {t.savedLimit(graphs.length)}
             </p>
           </div>
           <button
@@ -101,7 +103,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 gap-2">
               <Loader2 className="w-8 h-8 text-indigo-600 dark:text-indigo-400 animate-spin" />
-              <span className="text-xs font-bold">正在讀取雲端存檔...</span>
+              <span className="text-xs font-bold">{t.loadingSaved}</span>
             </div>
           ) : error ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center text-rose-500 dark:text-rose-400 p-4 gap-2">
@@ -110,16 +112,16 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
                 onClick={fetchGraphs}
                 className="mt-2 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 py-1.5 px-3 rounded-xl transition-all"
               >
-                重新整理
+                {t.retryBtn}
               </button>
             </div>
           ) : graphs.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-400 dark:text-slate-500 p-8 gap-3">
               <FolderOpen className="w-12 h-12 text-slate-300 dark:text-slate-700" />
               <div>
-                <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300">尚無雲端存檔</h3>
+                <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300">{t.noSavedTitle}</h3>
                 <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-1">
-                  展開維基圖譜後，可於下方設定面板點擊「儲存目前的圖譜」來建立存檔。
+                  {t.noSavedDesc}
                 </p>
               </div>
             </div>
@@ -148,12 +150,12 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
                     <div className="flex flex-col gap-1 mt-2 text-slate-400 dark:text-slate-500">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 shrink-0 text-slate-300 dark:text-slate-600" />
-                        <span className="text-[10px] font-semibold">建立時間: {formatDate(graph.createdAt)}</span>
+                        <span className="text-[10px] font-semibold">{t.createdAt}{formatDate(graph.createdAt)}</span>
                       </div>
                       {graph.updatedAt && (
                         <div className="flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5 shrink-0 text-slate-300 dark:text-slate-600" />
-                          <span className="text-[10px] font-semibold">最後修改: {formatDate(graph.updatedAt)}</span>
+                          <span className="text-[10px] font-semibold">{t.lastModified}{formatDate(graph.updatedAt)}</span>
                         </div>
                       )}
                     </div>
@@ -164,15 +166,19 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
                     <div className="flex gap-3 text-slate-500 dark:text-slate-400">
                       <div className="flex items-center gap-1 text-[10px] font-bold">
                         <Network className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600" />
-                        <span>節點: {graph.nodes.length}</span>
+                        <span>{t.nodeCountLabel}{graph.nodes.length}</span>
                       </div>
                       <div className="flex items-center gap-1 text-[10px] font-bold">
                         <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-600"></span>
-                        <span>連線: {graph.links.length}</span>
+                        <span>{t.linkCountLabel}{graph.links.length}</span>
                       </div>
                       <div className="flex items-center gap-1 text-[10px] font-bold">
                         <span className="text-[10px] uppercase font-extrabold px-1 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded">
-                          {graph.layoutMode === 'hierarchical' ? '階層' : '放射'}
+                          {graph.layoutMode === 'hierarchical'
+                            ? t.layoutHierarchicalShort
+                            : graph.layoutMode === 'radial'
+                            ? t.layoutRadialShort
+                            : t.layoutFreeShort}
                         </span>
                       </div>
                     </div>
@@ -182,7 +188,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
                       onClick={(e) => graph.id && handleDelete(e, graph.id)}
                       disabled={deletingId === graph.id}
                       className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-40"
-                      title="刪除此存檔"
+                      title={t.deleteSavedTooltip}
                     >
                       {deletingId === graph.id ? (
                         <Loader2 className="w-4 h-4 animate-spin text-rose-600 dark:text-rose-400" />
@@ -203,7 +209,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
             onClick={onClose}
             className="py-2 px-5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
           >
-            關閉
+            {t.closeBtn}
           </button>
         </div>
 

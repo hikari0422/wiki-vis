@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import { LogOut, User as UserIcon, Mail, AlertTriangle, ShieldAlert, FolderOpen } from 'lucide-react';
 import { signInWithGoogle, logout, isConfigured, type SavedGraph } from '../services/firebase';
 import { SavedHistoryModal } from './SavedHistoryModal';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface UserAuthProps {
   user: User | null;
@@ -10,6 +11,7 @@ interface UserAuthProps {
 }
 
 export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
+  const { language, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -29,7 +31,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
 
   const handleLogin = async () => {
     if (!isConfigured) {
-      setError('請先設定您的 Firebase 環境變數。請在根目錄建立 .env 檔案並填入參數。');
+      setError(t.firebaseEnvError);
       setIsOpen(true); // Open configuration helper dropdown
       return;
     }
@@ -41,7 +43,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
       setIsOpen(false);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || '登入失敗，請稍後再試。');
+      setError(err?.message || (language === 'zh' ? '登入失敗，請稍後再試。' : 'Failed to sign in, please try again later.'));
       setIsOpen(true);
     } finally {
       setLoading(false);
@@ -78,12 +80,12 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="flex items-center gap-2 p-1.5 bg-white/85 hover:bg-white dark:bg-slate-900/80 dark:hover:bg-slate-900 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 rounded-full shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer pointer-events-auto"
-            title={user.displayName || '使用者資訊'}
+            title={user.displayName || (language === 'zh' ? '使用者資訊' : 'User Info')}
           >
             {user.photoURL ? (
               <img
                 src={user.photoURL}
-                alt={user.displayName || '頭像'}
+                alt={user.displayName || (language === 'zh' ? '頭像' : 'Avatar')}
                 className="w-8 h-8 rounded-full border border-slate-100 dark:border-slate-800"
                 referrerPolicy="no-referrer"
               />
@@ -93,7 +95,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
               </div>
             )}
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 pr-2 max-w-[100px] truncate hidden sm:inline-block">
-              {user.displayName || '已登入'}
+              {user.displayName || t.displayNamePlaceholder}
             </span>
           </button>
 
@@ -105,7 +107,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
                 {user.photoURL ? (
                   <img
                     src={user.photoURL}
-                    alt={user.displayName || '頭像'}
+                    alt={user.displayName || (language === 'zh' ? '頭像' : 'Avatar')}
                     className="w-10 h-10 rounded-full border border-slate-100 dark:border-slate-800"
                     referrerPolicy="no-referrer"
                   />
@@ -117,7 +119,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
                 <div className="min-w-0 flex-1">
                   <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-1.5">
                     <UserIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-                    <span className="truncate">{user.displayName || '未設定名稱'}</span>
+                    <span className="truncate">{user.displayName || (language === 'zh' ? '未設定名稱' : 'Unnamed User')}</span>
                   </h4>
                   <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 truncate flex items-center gap-1.5 mt-0.5">
                     <Mail className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
@@ -135,7 +137,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
                 className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-white dark:hover:text-white bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100/50 dark:border-indigo-900/50 hover:border-indigo-100 transition-all duration-300 active:scale-95 cursor-pointer"
               >
                 <FolderOpen className="w-4 h-4" />
-                <span>我的歷史存檔</span>
+                <span>{t.mySavedHistory}</span>
               </button>
 
               {/* Action Buttons */}
@@ -149,7 +151,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
                 ) : (
                   <>
                     <LogOut className="w-4 h-4" />
-                    <span>登出帳戶</span>
+                    <span>{t.logout}</span>
                   </>
                 )}
               </button>
@@ -169,7 +171,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
             ) : (
               <>
                 <GoogleIcon />
-                <span>使用 Google 登入</span>
+                <span>{t.loginGoogle}</span>
               </>
             )}
           </button>
@@ -180,20 +182,20 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
               <div className="flex gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div className="flex flex-col gap-1">
-                  <h4 className="text-xs font-bold text-amber-800 dark:text-amber-300">需要設定 API</h4>
+                  <h4 className="text-xs font-bold text-amber-800 dark:text-amber-300">{t.needApiConfig}</h4>
                   <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-400 font-medium">{error}</p>
                 </div>
               </div>
 
               <div className="bg-white/60 dark:bg-slate-900/60 rounded-xl p-2.5 border border-amber-200/20 dark:border-amber-900/20 text-[10px] font-semibold text-slate-500 dark:text-slate-450 flex flex-col gap-1.5">
                 <span className="text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1">
-                  <ShieldAlert className="w-3.5 h-3.5" /> 快速設定指南：
+                  <ShieldAlert className="w-3.5 h-3.5" /> {t.quickConfigGuide}
                 </span>
                 <ol className="list-decimal list-inside flex flex-col gap-1">
-                  <li>請複製專案根目錄的 <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">.env.example</code> 為 <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">.env</code></li>
-                  <li>前往 Firebase 啟用 Google Auth</li>
-                  <li>填入對應的 API 金鑰與相關欄位</li>
-                  <li>重啟 Vite 開發伺服器 (<code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">npm run dev</code>)</li>
+                  <li>{t.quickStep1}</li>
+                  <li>{t.quickStep2}</li>
+                  <li>{t.quickStep3}</li>
+                  <li>{t.quickStep4}</li>
                 </ol>
               </div>
 
@@ -201,7 +203,7 @@ export const UserAuth: React.FC<UserAuthProps> = ({ user, onLoadGraph }) => {
                 onClick={() => setIsOpen(false)}
                 className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-bold transition-colors cursor-pointer"
               >
-                我瞭解了
+                {t.understandBtn}
               </button>
             </div>
           )}

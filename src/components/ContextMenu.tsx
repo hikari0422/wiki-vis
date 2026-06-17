@@ -1,5 +1,6 @@
 import React from 'react';
 import { ExternalLink, Target, Trash2, Network } from 'lucide-react';
+import { useLanguage } from '../hooks/useLanguage';
 import type { WikiNode } from '../types/wiki';
 
 interface ContextMenuProps {
@@ -21,6 +22,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onSetRoot,
   onRemove,
 }) => {
+  const { t } = useLanguage();
   // Prevent context menu clicks from triggering other interactions
   const handleContainerClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -59,7 +61,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             className="w-full text-left px-3 py-2 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 font-medium flex items-center gap-2.5 transition-colors cursor-pointer"
           >
             <Network className="w-4 h-4" />
-            展開節點連結
+            {t.exploreNode}
           </button>
         )}
 
@@ -71,7 +73,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 flex items-center gap-2.5 transition-colors cursor-pointer"
         >
           <Target className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-          設為新探索中心
+          {t.setAsRoot}
         </button>
 
         <a
@@ -82,7 +84,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 flex items-center gap-2.5 transition-colors cursor-pointer"
         >
           <ExternalLink className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-          開啟維基原網頁
+          {t.readFullArticle}
         </a>
 
         <div className="border-t border-slate-100 dark:border-slate-800/50 my-1"></div>
@@ -95,7 +97,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           className="w-full text-left px-3 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2.5 transition-colors cursor-pointer"
         >
           <Trash2 className="w-4 h-4" />
-          刪除此節點
+          {t.removeNode}
         </button>
       </div>
     </div>

@@ -63,10 +63,13 @@ export function useWikiGraph(user: User | null) {
     setLayoutMode3D,
     setSelectedNode,
     setDeepestActiveId,
-    addToHistory,
     isDirty,
     setIsDirty,
     setResetZoomTrigger: cameraTriggers.setResetZoomTrigger,
+    exploredLinksMap,
+    setExploredLinksMap,
+    clickHistory,
+    setClickHistory,
   });
 
   const operations = useGraphOperations({
