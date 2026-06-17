@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Home, Trash2, Sliders, BarChart3, Globe, Network, Compass, History, Layers, MoreVertical, Cloud } from 'lucide-react';
+import { Search, Home, Trash2, Sliders, BarChart3, Globe, Network, Compass, History, Layers, MoreVertical, Cloud, TrendingUp } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 
 interface ControlPanelProps {
@@ -23,6 +23,8 @@ interface ControlPanelProps {
   onSaveGraph: (title: string) => void;
   saveLoading: boolean;
   rootTitle: string;
+  isGlobalStatsOpen: boolean;
+  onToggleGlobalStats: () => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -46,6 +48,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onSaveGraph,
   saveLoading,
   rootTitle,
+  isGlobalStatsOpen,
+  onToggleGlobalStats,
 }) => {
   const { language, t } = useLanguage();
   const [input, setInput] = useState<string>('');
@@ -224,6 +228,21 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <Sliders className="w-4 h-4" />
             </button>
 
+            {/* Global Stats Toggle */}
+            <button
+              onClick={onToggleGlobalStats}
+              className={`p-2 rounded-xl transition-all active:scale-95 border border-slate-200/10 dark:border-slate-800/10 cursor-pointer ${
+                isGlobalStatsOpen 
+                  ? 'text-indigo-600 bg-indigo-50 border-indigo-200/30 dark:text-indigo-400 dark:bg-indigo-950/40 dark:border-indigo-900/30' 
+                  : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 dark:text-slate-300 dark:hover:text-indigo-400 dark:hover:bg-indigo-950/30'
+              }`}
+              title="全站統計 (Global Stats)"
+              aria-label="全站統計"
+            >
+              <TrendingUp className="w-4 h-4" />
+            </button>
+
+
             {/* Clear Board */}
             <button
               onClick={() => {
@@ -325,6 +344,20 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <Layers className="w-4.5 h-4.5" />
             </button>
           )}
+
+          {/* Global Stats Toggle */}
+          <button
+            onClick={onToggleGlobalStats}
+            className={`p-2 rounded-xl transition-all active:scale-95 border border-slate-200/10 dark:border-slate-800/10 cursor-pointer flex-1 flex justify-center ${
+              isGlobalStatsOpen 
+                ? 'text-indigo-600 bg-indigo-50 border-indigo-200/30 dark:text-indigo-400 dark:bg-indigo-950/40 dark:border-indigo-900/30' 
+                : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 dark:text-slate-300 dark:hover:text-indigo-400 dark:hover:bg-indigo-950/30'
+            }`}
+            title="全站統計 (Global Stats)"
+            aria-label="全站統計"
+          >
+            <TrendingUp className="w-4.5 h-4.5" />
+          </button>
 
           {/* Settings Toggle */}
           <button

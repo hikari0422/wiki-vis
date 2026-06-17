@@ -11,6 +11,7 @@ import { LayoutCameraSelector } from './components/LayoutCameraSelector';
 import { SidebarToggleButton } from './components/SidebarToggleButton';
 import { ThemeToggle } from './components/ThemeToggle';
 import { LanguageSelector } from './components/LanguageSelector';
+import { GlobalStatsDashboard } from './components/GlobalStatsDashboard';
 
 import { useWikiAuth } from './hooks/useWikiAuth';
 import { useWikiGraph } from './hooks/wiki-graph';
@@ -38,6 +39,9 @@ export default function App() {
 
   // 1. Authentication hook
   const { user } = useWikiAuth();
+
+  // Global Stats state
+  const [isGlobalStatsOpen, setIsGlobalStatsOpen] = useState(false);
 
   // 2. Graph state machine hook
   const {
@@ -196,6 +200,8 @@ export default function App() {
         onSaveGraph={handleSaveGraph}
         saveLoading={saveLoading}
         rootTitle={rootNode?.id || ''}
+        isGlobalStatsOpen={isGlobalStatsOpen}
+        onToggleGlobalStats={() => setIsGlobalStatsOpen(!isGlobalStatsOpen)}
       />
 
       {/* 3. Sliding Detail Reader Panel */}
@@ -257,6 +263,12 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Global Stats Dashboard Modal */}
+      <GlobalStatsDashboard
+        isOpen={isGlobalStatsOpen}
+        onClose={() => setIsGlobalStatsOpen(false)}
+      />
     </main>
   );
 }
