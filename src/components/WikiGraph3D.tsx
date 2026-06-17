@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import * as d3 from 'd3';
 import type { WikiNode, WikiLink } from '../types/wiki';
 import { fetchWikiSummary } from '../services/wikiApi';
+import { HoverCard } from './WikiGraph/HoverCard';
 
 interface WikiGraph3DProps {
   nodes: WikiNode[];
@@ -20,6 +21,7 @@ interface WikiGraph3DProps {
   expandedNodeIds: Set<string>;
   onToggleNodeExpand: (id: string) => void;
   activePathSet: Set<string>;
+  theme: 'light' | 'dark';
 }
 
 export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
@@ -35,6 +37,7 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
   fitScreenTrigger,
   focusRootTrigger,
   activePathSet,
+  theme,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<any>(null);
@@ -50,7 +53,7 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
   const selectedNodeIdRef = useRef<string | null>(null);
   useEffect(() => {
     selectedNodeIdRef.current = selectedNode ? selectedNode.id : null;
-    // Update graph nodes to trigger re-render of node colors/highlight
+    // Update graph nodes to trigger re-render of colors/highlight
     if (graphRef.current) {
       graphRef.current.nodeThreeObject(graphRef.current.nodeThreeObject());
     }
@@ -107,7 +110,8 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     label: string,
     isRoot: boolean,
     isSelected: boolean,
-    textColor: string
+    textColor: string,
+    haloColor: string
   ) => {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
@@ -131,8 +135,8 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     // Redefine font after canvas resizing
     context.font = `bold ${canvasFontSize}px sans-serif`;
 
-    // Draw dark outline for high contrast and readability on any background (scaled proportionately)
-    context.strokeStyle = 'rgba(2, 2, 8, 0.85)';
+    // Draw outline for high contrast and readability on any background (scaled proportionately)
+    context.strokeStyle = haloColor;
     context.lineWidth = 3.5 * scaleMultiplier;
     context.lineJoin = 'round';
     context.textAlign = 'center';
@@ -173,7 +177,7 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     graph
       .width(containerRef.current.clientWidth)
       .height(containerRef.current.clientHeight)
-      .backgroundColor('#020208') // Premium dark background
+      .backgroundColor(theme === 'dark' ? '#0b0f19' : '#f8fafc') // Premium background matching theme
       .showNavInfo(false)         // Hide default navigation hints overlay
       // Setup Node Click & Hover
       .onNodeClick((node: any) => {
@@ -217,6 +221,15 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       }
     };
   }, []);
+
+  // 1a. Listen to theme changes and update the 3D scene background color and element rendering dynamically
+  useEffect(() => {
+    if (graphRef.current) {
+      graphRef.current.backgroundColor(theme === 'dark' ? '#0b0f19' : '#f8fafc');
+      graphRef.current.nodeThreeObject(graphRef.current.nodeThreeObject());
+      graphRef.current.linkColor(() => theme === 'dark' ? '#ffffff' : '#000000');
+    }
+  }, [theme]);
 
   // 2. Synchronize Data (Nodes & Links)
   useEffect(() => {
@@ -374,21 +387,44 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
 
       // Determine state colors matching the reference image's color styling
       // The spheres are dark, desaturated versions, and the text labels are bright, saturated versions of the same color.
-      let sphereColor = '#1e3e62'; // Default Unloaded: dark steel blue
-      let textColor = '#60a5fa';   // Bright sky blue
+      let sphereColor = '';
+      let textColor = '';
 
-      if (isLoading) {
-        sphereColor = '#134e5e';   // Muted dark teal
-        textColor = '#22d3ee';     // Bright teal
-      } else if (isRoot) {
-        sphereColor = '#806010';   // Muted dark gold
-        textColor = '#ffd83b';     // Bright gold
-      } else if (isDeadEnd) {
-        sphereColor = '#7a2222';   // Muted dark red
-        textColor = '#ff5c5c';     // Bright red
-      } else if (isLoaded) {
-        sphereColor = '#8c5858';   // Muted dark rose/pink (Les Miserables cluster style)
-        textColor = '#fda4af';     // Bright rose/pink
+      if (theme === 'dark') {
+        sphereColor = '#1e3e62'; // Default Unloaded: dark steel blue
+        textColor = '#60a5fa';   // Bright sky blue
+
+        if (isLoading) {
+          sphereColor = '#134e5e';   // Muted dark teal
+          textColor = '#22d3ee';     // Bright teal
+        } else if (isRoot) {
+          sphereColor = '#806010';   // Muted dark gold
+          textColor = '#ffd83b';     // Bright gold
+        } else if (isDeadEnd) {
+          sphereColor = '#7a2222';   // Muted dark red
+          textColor = '#ff5c5c';     // Bright red
+        } else if (isLoaded) {
+          sphereColor = '#8c5858';   // Muted dark rose/pink (Les Miserables cluster style)
+          textColor = '#fda4af';     // Bright rose/pink
+        }
+      } else {
+        // Light mode colors
+        sphereColor = '#dbeafe';   // Light blue
+        textColor = '#1e40af';     // Dark blue
+
+        if (isLoading) {
+          sphereColor = '#ccfbf1';   // Light teal
+          textColor = '#0f766e';     // Dark teal
+        } else if (isRoot) {
+          sphereColor = '#fef3c7';   // Light amber
+          textColor = '#b45309';     // Dark amber
+        } else if (isDeadEnd) {
+          sphereColor = '#fee2e2';   // Light red
+          textColor = '#be123c';     // Dark red
+        } else if (isLoaded) {
+          sphereColor = '#fce7f3';   // Light pink
+          textColor = '#be185d';     // Dark pink
+        }
       }
 
       const group = new THREE.Group();
@@ -419,13 +455,13 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       }
 
       // C. Floating plain text label sprite (positioned directly on the sphere)
-      const sprite = createTextSprite(node.label, isRoot, isSelected, textColor);
+      const haloColor = theme === 'dark' ? 'rgba(2, 2, 8, 0.85)' : 'rgba(248, 250, 252, 0.95)';
+      const sprite = createTextSprite(node.label, isRoot, isSelected, textColor, haloColor);
       sprite.position.set(0, 0, 0); // Centered exactly on the node as in the reference image
       group.add(sprite);
 
       return group;
     });
-
 
     // Adjust core physics parameters
     graph.d3Force('charge').strength(-150);
@@ -445,7 +481,7 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       });
     });
 
-  }, [nodes, activePathSet]);
+  }, [nodes, activePathSet, theme]);
 
   // 4. Handle Camera Control Triggers
   
@@ -535,39 +571,12 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       onMouseMove={handleMouseMove}
       className="w-full h-full relative overflow-hidden"
     >
-      {/* Floating Hover Preview Card (Dark Mode styling matching WebGL background) */}
-      {hoveredNode && hoverPosition && (
-        <div
-          className="fixed z-50 pointer-events-none w-72 bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-xl p-4 animate-in fade-in zoom-in-95 duration-200 text-left text-slate-100"
-          style={{
-            left: `${hoverPosition.x + 16}px`,
-            top: `${hoverPosition.y + 16}px`,
-          }}
-        >
-          <h3 className="font-bold text-sm text-amber-400 mb-1.5 truncate border-b border-slate-700 pb-1.5">
-            {hoveredNode.id}
-          </h3>
-          {hoverCardData ? (
-            <div className="flex gap-2.5 items-start">
-              {hoverCardData.thumbnail && (
-                <img
-                  src={hoverCardData.thumbnail}
-                  alt={hoveredNode.id}
-                  className="w-16 h-16 object-cover rounded-xl border border-slate-700/55 shrink-0"
-                />
-              )}
-              <p className="text-[11px] text-slate-300 leading-normal line-clamp-4 select-none">
-                {hoverCardData.extract}
-              </p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 py-1.5 text-[11px] text-slate-400">
-              <span className="w-3.5 h-3.5 block border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
-              <span>正在加載預覽...</span>
-            </div>
-          )}
-        </div>
-      )}
+      <HoverCard
+        hoveredNode={hoveredNode}
+        hoverPosition={hoverPosition}
+        hoverCardData={hoverCardData}
+        darkMode={theme === 'dark'}
+      />
     </div>
   );
 };

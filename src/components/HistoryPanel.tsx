@@ -18,14 +18,14 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   if (!isOpen || history.length === 0) return null;
 
   return (
-    <div className="fixed top-20 left-4 right-4 w-auto max-h-[40vh] md:top-24 md:left-4 md:right-auto md:w-52 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-3 flex flex-col gap-2.5 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in">
+    <div className="fixed top-20 left-4 right-4 w-auto max-h-[40vh] md:top-24 md:left-4 md:right-auto md:w-52 z-20 bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-lg p-3 flex flex-col gap-2.5 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in">
       {/* Panel Title Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-        <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 select-none">
-          <History className="w-3.5 h-3.5 text-indigo-500" />
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2">
+        <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 select-none">
+          <History className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
           探索歷史軌跡
         </span>
-        <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-md">
+        <span className="text-[9px] font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">
           {history.length}/10
         </span>
       </div>
@@ -41,14 +41,14 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
               className={`group flex items-start gap-2 w-full text-left py-1.5 px-2 rounded-xl text-xs transition-all active:scale-[0.98] cursor-pointer ${
                 isCurrent
                   ? 'bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-600/10'
-                  : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-100/50'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100/50 dark:hover:bg-slate-800/50'
               }`}
             >
               {/* Timeline Indicator Dot */}
               <div className="flex flex-col items-center shrink-0 mt-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${isCurrent ? 'bg-white' : 'bg-slate-300 group-hover:bg-indigo-500'} transition-colors`} />
+                <div className={`w-1.5 h-1.5 rounded-full ${isCurrent ? 'bg-white' : 'bg-slate-300 dark:bg-slate-700 group-hover:bg-indigo-500 dark:group-hover:bg-indigo-400'} transition-colors`} />
                 {index < history.length - 1 && (
-                  <div className={`w-px h-4 border-l border-dashed ${isCurrent ? 'border-indigo-300' : 'border-slate-200'} mt-1`} />
+                  <div className={`w-px h-4 border-l border-dashed ${isCurrent ? 'border-indigo-300' : 'border-slate-200 dark:border-slate-800'} mt-1`} />
                 )}
               </div>
 
@@ -57,13 +57,13 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
                 <div className="truncate text-[11px] leading-tight font-medium" title={node.id}>
                   {node.id}
                 </div>
-                <span className={`text-[9px] block ${isCurrent ? 'text-indigo-200' : 'text-slate-400'} font-semibold mt-0.5`}>
+                <span className={`text-[9px] block ${isCurrent ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'} font-semibold mt-0.5`}>
                   深度: {node.depth ?? 0}
                 </span>
               </div>
 
               {/* Arrow right on hover */}
-              <ArrowRight className={`w-3 h-3 shrink-0 self-center opacity-0 group-hover:opacity-100 transition-all ${isCurrent ? 'text-white' : 'text-indigo-500'} -translate-x-1 group-hover:translate-x-0`} />
+              <ArrowRight className={`w-3 h-3 shrink-0 self-center opacity-0 group-hover:opacity-100 transition-all ${isCurrent ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} -translate-x-1 group-hover:translate-x-0`} />
             </button>
           );
         })}

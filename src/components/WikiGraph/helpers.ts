@@ -117,23 +117,23 @@ export function getNodeClasses(node: WikiNode, selectedNode: WikiNode | null): s
   let base = 'node-interactive cursor-pointer select-none ';
 
   if (node.loading) {
-    base += 'fill-indigo-50 stroke-indigo-400 stroke-[3px] animate-node-pulse';
+    base += 'fill-indigo-50 dark:fill-indigo-950/45 stroke-indigo-400 dark:stroke-indigo-500 stroke-[3px] animate-node-pulse';
   } else if (node.isRoot) {
     base += isSelected
-      ? 'fill-indigo-100 stroke-amber-500 stroke-[4px] shadow-lg'
-      : 'fill-indigo-50 stroke-indigo-600 stroke-[3.5px]';
+      ? 'fill-indigo-100 dark:fill-indigo-900/50 stroke-amber-500 dark:stroke-amber-400 stroke-[4px] shadow-lg'
+      : 'fill-indigo-50 dark:fill-indigo-950/45 stroke-indigo-600 dark:stroke-indigo-500 stroke-[3.5px]';
   } else if (node.isDeadEnd) {
     base += isSelected
-      ? 'fill-slate-100 stroke-slate-500 stroke-[3px] stroke-dasharray-[4,4]'
-      : 'fill-slate-50 stroke-slate-400 stroke-[2px] stroke-dasharray-[4,4]';
+      ? 'fill-slate-100 dark:fill-slate-900/50 stroke-slate-500 dark:stroke-slate-500 stroke-[3px] stroke-dasharray-[4,4]'
+      : 'fill-slate-50 dark:fill-slate-950/30 stroke-slate-400 dark:stroke-slate-600 stroke-[2px] stroke-dasharray-[4,4]';
   } else if (node.loaded) {
     base += isSelected
-      ? 'fill-emerald-50 stroke-emerald-600 stroke-[3.5px]'
-      : 'fill-emerald-50 stroke-emerald-500 stroke-[2.5px]';
+      ? 'fill-emerald-50 dark:fill-emerald-950/45 stroke-emerald-600 dark:stroke-emerald-400 stroke-[3.5px]'
+      : 'fill-emerald-50 dark:fill-emerald-950/20 stroke-emerald-500 dark:stroke-emerald-500/80 stroke-[2.5px]';
   } else {
     base += isSelected
-      ? 'fill-sky-50 stroke-indigo-600 stroke-[3.5px]'
-      : 'fill-white stroke-indigo-400 stroke-[2px] hover:stroke-indigo-600';
+      ? 'fill-sky-50 dark:fill-indigo-950/45 stroke-indigo-600 dark:stroke-indigo-400 stroke-[3.5px]'
+      : 'fill-white dark:fill-slate-900 stroke-indigo-400 dark:stroke-indigo-500/80 stroke-[2px] hover:stroke-indigo-600 dark:hover:stroke-indigo-400';
   }
 
   return base;

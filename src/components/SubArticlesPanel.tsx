@@ -44,46 +44,46 @@ export const SubArticlesPanel: React.FC<SubArticlesPanelProps> = ({
   };
 
   return (
-    <div className="fixed top-20 left-4 right-4 w-auto max-h-[45vh] translate-y-0 md:top-[55%] md:left-4 md:right-auto md:w-60 md:-translate-y-1/2 z-20 bg-white/75 backdrop-blur-xl border border-slate-200/50 rounded-2xl shadow-lg p-4 flex flex-col gap-3 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in">
+    <div className="fixed top-20 left-4 right-4 w-auto max-h-[45vh] translate-y-0 md:top-[55%] md:left-4 md:right-auto md:w-60 md:-translate-y-1/2 z-20 bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-lg p-4 flex flex-col gap-3 pointer-events-auto transition-all hover:shadow-xl duration-300 animate-in slide-in-from-top-3 md:slide-in-from-left-5 fade-in">
       {/* Header Title */}
-      <div className="flex items-center gap-1.5 border-b border-slate-100 pb-2 select-none">
-        <Layers className="w-4 h-4 text-indigo-500" />
-        <span className="text-xs font-bold text-slate-600 leading-tight">
+      <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800/50 pb-2 select-none">
+        <Layers className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-tight">
           未顯示關聯條目
         </span>
-        <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-md ml-auto">
+        <span className="text-[9px] font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md ml-auto">
           共 {hiddenSubArticles.length} 個
         </span>
       </div>
 
       {/* Search Input Box */}
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
         <input
           type="text"
           placeholder="搜尋隱藏條目..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full text-[11px] pl-8 pr-2.5 py-1.5 bg-slate-100/50 border border-slate-200/30 rounded-xl focus:outline-none focus:border-indigo-500/50 focus:bg-white text-slate-700 placeholder-slate-400 transition-all shadow-inner"
+          className="w-full text-[11px] pl-8 pr-2.5 py-1.5 bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200/30 dark:border-slate-800/30 rounded-xl focus:outline-none focus:border-indigo-500/50 dark:focus:border-indigo-500/50 focus:bg-white dark:focus:bg-slate-950 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 transition-all shadow-inner"
         />
       </div>
 
       {/* Dropdown Select Element */}
       <div className="flex flex-col gap-1">
-        <label className="text-[9px] font-bold text-slate-400 select-none uppercase tracking-wider">
+        <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 select-none uppercase tracking-wider">
           選擇欲加入的條目:
         </label>
         <select
           value={activeSelected}
           onChange={(e) => setSelectedValue(e.target.value)}
           disabled={filteredArticles.length === 0}
-          className="w-full text-[11px] py-1.5 px-2 bg-slate-50 border border-slate-200/60 rounded-xl focus:outline-none focus:border-indigo-500/50 text-slate-700 font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          className="w-full text-[11px] py-1.5 px-2 bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 rounded-xl focus:outline-none focus:border-indigo-500/50 dark:focus:border-indigo-500/50 text-slate-700 dark:text-slate-200 font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {filteredArticles.length === 0 ? (
-            <option value="">無符合的隱藏條目</option>
+            <option value="" className="dark:bg-slate-950 dark:text-slate-200">無符合的隱藏條目</option>
           ) : (
             filteredArticles.map((title) => (
-              <option key={title} value={title}>
+              <option key={title} value={title} className="dark:bg-slate-950 dark:text-slate-200">
                 {title}
               </option>
             ))
@@ -95,7 +95,7 @@ export const SubArticlesPanel: React.FC<SubArticlesPanelProps> = ({
       <button
         onClick={handleAddClick}
         disabled={!activeSelected}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-md shadow-indigo-600/10 disabled:shadow-none transition-all active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed"
+        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 text-white font-semibold py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-md shadow-indigo-600/10 disabled:shadow-none transition-all active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed"
       >
         <Plus className="w-3.5 h-3.5" />
         <span>加入畫布並探索</span>

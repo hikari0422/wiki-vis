@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { WikiGraph } from './components/WikiGraph/WikiGraph';
 import { WikiGraph3D } from './components/WikiGraph3D';
 import { ControlPanel } from './components/ControlPanel';
@@ -8,11 +9,32 @@ import { SubArticlesPanel } from './components/SubArticlesPanel';
 import { UserAuth } from './components/UserAuth';
 import { LayoutCameraSelector } from './components/LayoutCameraSelector';
 import { SidebarToggleButton } from './components/SidebarToggleButton';
+import { ThemeToggle } from './components/ThemeToggle';
 
 import { useWikiAuth } from './hooks/useWikiAuth';
 import { useWikiGraph } from './hooks/wiki-graph';
 
 export default function App() {
+  // Theme state management
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('wiki-vis-theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+    }
+    return 'light';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('wiki-vis-theme', theme);
+  }, [theme]);
+
   // 1. Authentication hook
   const { user } = useWikiAuth();
 
@@ -81,9 +103,12 @@ export default function App() {
   const lastClickedNode = clickHistory[clickHistory.length - 1] || null;
 
   return (
-    <main className="w-full h-full relative overflow-hidden bg-slate-50">
-      {/* Google Authentication Button/Dropdown */}
-      <UserAuth user={user} onLoadGraph={handleLoadGraph} />
+    <main className="w-full h-full relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      {/* Top Right Actions */}
+      <div className="fixed top-4 right-4 z-40 flex items-center gap-2.5 pointer-events-none">
+        <ThemeToggle theme={theme} toggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />
+        <UserAuth user={user} onLoadGraph={handleLoadGraph} />
+      </div>
       
       {/* 1. Core Force-Directed Canvas Layer */}
       {nodes.length > 0 ? (
@@ -103,6 +128,7 @@ export default function App() {
             expandedNodeIds={expandedNodeIds}
             onToggleNodeExpand={handleToggleNodeExpand}
             activePathSet={activePathSet}
+            theme={theme}
           />
         ) : (
           <WikiGraph
@@ -120,11 +146,12 @@ export default function App() {
             focusRootTrigger={focusRootTrigger}
             expandedNodeIds={expandedNodeIds}
             onToggleNodeExpand={handleToggleNodeExpand}
+            theme={theme}
           />
         )
       ) : (
         /* Empty canvas whiteboard background */
-        <div className="w-full h-full bg-grid-whiteboard relative overflow-hidden bg-slate-50" />
+        <div className="w-full h-full bg-grid-whiteboard relative overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300" />
       )}
 
       {/* Exploration Time Machine History Panel (Top Left Corner) */}

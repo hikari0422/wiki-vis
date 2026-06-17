@@ -26,6 +26,7 @@ interface WikiGraphProps {
   focusRootTrigger: number;
   expandedNodeIds: Set<string>;
   onToggleNodeExpand: (id: string) => void;
+  theme: 'light' | 'dark';
 }
 
 export const WikiGraph: React.FC<WikiGraphProps> = ({
@@ -43,6 +44,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
   focusRootTrigger,
   expandedNodeIds,
   onToggleNodeExpand,
+  theme,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -540,7 +542,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
   }, [nodes, links, layoutMode]);
 
   return (
-    <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-grid-whiteboard">
+    <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-grid-whiteboard bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <svg
         ref={svgRef}
         className="w-full h-full block focus:outline-none"
@@ -557,7 +559,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <path d="M 0 1 L 10 5 L 0 9 z" fill="#cbd5e1" />
+            <path d="M 0 1 L 10 5 L 0 9 z" className="fill-slate-300 dark:fill-slate-700 transition-colors duration-300" />
           </marker>
           
           <marker
@@ -569,7 +571,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <path d="M 0 1 L 10 5 L 0 9 z" fill="#818cf8" />
+            <path d="M 0 1 L 10 5 L 0 9 z" className="fill-indigo-500 dark:fill-indigo-400 transition-colors duration-300" />
           </marker>
 
           <pattern
@@ -578,7 +580,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
             height="50"
             patternUnits="userSpaceOnUse"
           >
-            <circle cx="2" cy="2" r="1" fill="#e2e8f0" />
+            <circle cx="2" cy="2" r="1" className="fill-slate-200 dark:fill-slate-800 transition-colors duration-300" />
           </pattern>
         </defs>
 
@@ -595,9 +597,12 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
               return (
                 <path
                   key={`link-${sourceId}-${targetId}-${idx}`}
-                  className="graph-link"
+                  className={`graph-link transition-colors duration-300 ${
+                    isSelectedPath
+                      ? 'stroke-indigo-500 dark:stroke-indigo-400'
+                      : 'stroke-slate-200 dark:stroke-slate-850/80'
+                  }`}
                   d={getLinkPath(link, nodes, layoutMode)}
-                  stroke={isSelectedPath ? '#818cf8' : '#e2e8f0'}
                   strokeWidth={isSelectedPath ? 2.5 : 1.5}
                   fill="none"
                   markerEnd={`url(#${isSelectedPath ? 'arrow-marker-selected' : 'arrow-marker'})`}
@@ -638,7 +643,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                       cy="0"
                       rx={getNodeRadiusX(node) + 8}
                       ry={getNodeRadiusY(node) + 8}
-                      className="fill-transparent stroke-indigo-100 stroke-[4px] animate-pulse pointer-events-none opacity-60"
+                      className="fill-transparent stroke-indigo-100 dark:stroke-indigo-950/60 stroke-[4px] animate-pulse pointer-events-none opacity-60"
                     />
                   )}
                   {isSelected && !node.isRoot && (
@@ -647,17 +652,17 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                       cy="0"
                       rx={getNodeRadiusX(node) + 6}
                       ry={getNodeRadiusY(node) + 6}
-                      className="fill-transparent stroke-sky-100 stroke-[4px] pointer-events-none opacity-85 animate-pulse"
+                      className="fill-transparent stroke-sky-100 dark:stroke-sky-950/60 stroke-[4px] pointer-events-none opacity-85 animate-pulse"
                     />
                   )}
 
                   <ellipse
-                    cx="0"
-                    cy="0"
-                    rx={getNodeRadiusX(node)}
-                    ry={getNodeRadiusY(node)}
-                    className={getNodeClasses(node, selectedNode)}
-                    style={{ transition: 'fill 0.2s, stroke 0.2s, stroke-width 0.2s' }}
+                     cx="0"
+                     cy="0"
+                     rx={getNodeRadiusX(node)}
+                     ry={getNodeRadiusY(node)}
+                     className={getNodeClasses(node, selectedNode)}
+                     style={{ transition: 'fill 0.2s, stroke 0.2s, stroke-width 0.2s' }}
                   />
 
                   {node.isRoot && (
@@ -670,12 +675,12 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                   <text
                     textAnchor="middle"
                     dy=".3em"
-                    className={`text-[13px] font-bold pointer-events-none select-none tracking-tight ${
+                    className={`text-[13px] font-bold pointer-events-none select-none tracking-tight transition-colors duration-200 ${
                       node.isDeadEnd 
-                        ? 'fill-slate-400' 
+                        ? 'fill-slate-400 dark:fill-slate-500' 
                         : isSelected 
-                          ? 'fill-indigo-900 font-bold' 
-                          : 'fill-slate-700'
+                          ? 'fill-indigo-900 dark:fill-indigo-200 font-bold' 
+                          : 'fill-slate-700 dark:fill-slate-350'
                     }`}
                   >
                     {formatLabel(node.label)}
@@ -701,8 +706,8 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                         r="10"
                         className={`transition-all duration-300 ${
                           expandedNodeIds.has(node.id)
-                            ? 'fill-indigo-50/80 stroke-indigo-200/50'
-                            : 'fill-slate-50/50 stroke-transparent group-hover/toggle:fill-slate-100 group-hover/toggle:stroke-slate-200'
+                            ? 'fill-indigo-50/80 dark:fill-indigo-950/85 stroke-indigo-200/50 dark:stroke-indigo-900/50'
+                            : 'fill-slate-50/50 dark:fill-slate-900/50 stroke-transparent group-hover/toggle:fill-slate-100 dark:group-hover/toggle:fill-slate-800 group-hover/toggle:stroke-slate-200 dark:group-hover/toggle:stroke-slate-700'
                         }`}
                         strokeWidth="1"
                       />
@@ -717,8 +722,8 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                           fill="none"
                           className={`transition-all duration-300 ${
                             expandedNodeIds.has(node.id)
-                              ? 'stroke-indigo-600'
-                              : 'stroke-slate-400 group-hover/toggle:stroke-indigo-500'
+                              ? 'stroke-indigo-600 dark:stroke-indigo-400'
+                              : 'stroke-slate-400 dark:stroke-slate-500 group-hover/toggle:stroke-indigo-500 dark:group-hover/toggle:stroke-indigo-400'
                           }`}
                           strokeWidth="1.5"
                           strokeLinecap="round"
@@ -731,8 +736,8 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                           rx="1.5"
                           className={`transition-all duration-300 ${
                             expandedNodeIds.has(node.id)
-                              ? 'fill-indigo-600 stroke-indigo-600'
-                              : 'fill-white stroke-slate-400 group-hover/toggle:stroke-indigo-500'
+                              ? 'fill-indigo-600 dark:fill-indigo-400 stroke-indigo-600 dark:stroke-indigo-400'
+                              : 'fill-white dark:fill-slate-900 stroke-slate-400 dark:stroke-slate-500 group-hover/toggle:stroke-indigo-500 dark:group-hover/toggle:stroke-indigo-400'
                           }`}
                           strokeWidth="1"
                         />
@@ -741,7 +746,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
                           cy="2.5"
                           r="1"
                           className={`transition-all duration-300 ${
-                            expandedNodeIds.has(node.id) ? 'fill-white' : 'fill-slate-400 group-hover/toggle:fill-indigo-500'
+                            expandedNodeIds.has(node.id) ? 'fill-white dark:fill-slate-900' : 'fill-slate-400 dark:fill-slate-500 group-hover/toggle:fill-indigo-500 dark:group-hover/toggle:fill-indigo-400'
                           }`}
                         />
                       </g>
@@ -783,6 +788,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
         hoveredNode={hoveredNode}
         hoverPosition={hoverPosition}
         hoverCardData={hoverCardData}
+        darkMode={theme === 'dark'}
       />
     </div>
   );
