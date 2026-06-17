@@ -1,7 +1,7 @@
 import React from 'react';
 import { History, ArrowRight } from 'lucide-react';
-import type { WikiNode } from '../types/wiki';
-import { useLanguage } from '../hooks/useLanguage';
+import type { WikiNode } from '../../types/wiki';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface HistoryPanelProps {
   history: WikiNode[];

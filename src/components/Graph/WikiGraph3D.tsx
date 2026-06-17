@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import ForceGraph3D from '3d-force-graph';
 import * as THREE from 'three';
 import * as d3 from 'd3';
-import type { WikiNode, WikiLink } from '../types/wiki';
-import { fetchWikiSummary } from '../services/wikiApi';
+import type { WikiNode, WikiLink } from '../../types/wiki';
+import { fetchWikiSummary } from '../../services/wikiApi';
 import { HoverCard } from './WikiGraph/HoverCard';
-import { useLanguage } from '../hooks/useLanguage';
+import { useLanguage } from '../../hooks/useLanguage';
+import { createTextSprite } from './utils/threeHelpers';
+import { useGraphCamera } from './hooks/useGraphCamera';
 
 interface WikiGraph3DProps {
   nodes: WikiNode[];
@@ -106,66 +108,8 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
     }, 350) as unknown as number;
   };
 
-  // Helper to create high-definition pill text sprite for text-nodes representation
-  // Helper to create plain text sprite matching the reference image layout
-  const createTextSprite = (
-    label: string,
-    isRoot: boolean,
-    isSelected: boolean,
-    textColor: string,
-    haloColor: string
-  ) => {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return new THREE.Sprite();
-
-    // High-DPI Scale factor to fix blurry text in WebGL
-    const scaleMultiplier = 6;
-    const baseFontSize = isRoot ? 24 : isSelected ? 20 : 13;
-    const canvasFontSize = baseFontSize * scaleMultiplier;
-
-    context.font = `bold ${canvasFontSize}px sans-serif`;
-    
-    // Truncate label if too long
-    const formattedLabel = label.length > 15 ? `${label.slice(0, 14)}...` : label;
-    const textWidth = context.measureText(formattedLabel).width;
-
-    // Allocate canvas size based on high-DPI font size
-    canvas.width = textWidth + (20 * scaleMultiplier);
-    canvas.height = canvasFontSize + (20 * scaleMultiplier);
-
-    // Redefine font after canvas resizing
-    context.font = `bold ${canvasFontSize}px sans-serif`;
-
-    // Draw outline for high contrast and readability on any background (scaled proportionately)
-    context.strokeStyle = haloColor;
-    context.lineWidth = 3.5 * scaleMultiplier;
-    context.lineJoin = 'round';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.strokeText(formattedLabel, canvas.width / 2, canvas.height / 2);
-
-    // Draw text label with node color matching reference image
-    context.fillStyle = textColor;
-    context.fillText(formattedLabel, canvas.width / 2, canvas.height / 2);
-
-    // Create Three.js Texture & Sprite
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    
-    const spriteMaterial = new THREE.SpriteMaterial({
-      map: texture,
-      depthTest: false, // Make label always draw on top of links for absolute readability
-      transparent: true,
-    });
-    const sprite = new THREE.Sprite(spriteMaterial);
-    
-    // Scale sprite down by the same multiplier to keep original 3D dimensions but sharp resolution
-    const spriteScaleFactor = 0.15 / scaleMultiplier;
-    sprite.scale.set(canvas.width * spriteScaleFactor, canvas.height * spriteScaleFactor, 1);
-
-    return sprite;
-  };
+  // Helper to create high-definition pill text sprite
+  // createTextSprite is imported from ./utils/threeHelpers.ts
 
   // 1. Initialize Graph Instance
   useEffect(() => {
@@ -490,89 +434,15 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
   }, [nodes, activePathSet, theme]);
 
   // 4. Handle Camera Control Triggers
-  
-  // Camera Event: Zoom Reset
-  useEffect(() => {
-    if (!graphRef.current || resetZoomTrigger === 0) return;
-    graphRef.current.cameraPosition(
-      { x: 0, y: -70, z: 200 }, // Slightly tilted reset position for 3D depth perception
-      { x: 0, y: 0, z: 0 },   // Reset lookAt
-      1200                    // transition ms
-    );
-  }, [resetZoomTrigger]);
-
-  // Camera Event: Focus Selected Node
-  useEffect(() => {
-    if (!graphRef.current || !selectedNode) return;
-    
-    const activeNode = nodes.find(n => n.id === selectedNode.id);
-    if (!activeNode) return;
-
-    const x = activeNode.x ?? 0;
-    const y = activeNode.y ?? 0;
-    const z = activeNode.z ?? 0;
-
-    let tx = x;
-    let ty = y;
-    let tz = z + 90; // Default offset
-
-    if (x !== 0 || y !== 0 || z !== 0) {
-      const dist = Math.hypot(x, y, z);
-      tx = x * (1 + 75 / dist);
-      ty = y * (1 + 75 / dist);
-      // ponytail: add a Z offset (+35) to camera position to ensure tilted perspective and avoid edge-on flatness
-      tz = z * (1 + 75 / dist) + 35;
-    }
-
-    graphRef.current.cameraPosition({ x: tx, y: ty, z: tz }, { x, y, z }, 1200);
-  }, [selectedNode?.id, selectedNode?.loaded]);
-
-  // Camera Event: Refocus Selected trigger
-  useEffect(() => {
-    if (!graphRef.current || focusSelectedTrigger === 0 || !selectedNode) return;
-
-    const activeNode = nodes.find(n => n.id === selectedNode.id);
-    if (!activeNode) return;
-
-    const x = activeNode.x ?? 0;
-    const y = activeNode.y ?? 0;
-    const z = activeNode.z ?? 0;
-
-    let tx = x;
-    let ty = y;
-    let tz = z + 90;
-
-    if (x !== 0 || y !== 0 || z !== 0) {
-      const dist = Math.hypot(x, y, z);
-      tx = x * (1 + 75 / dist);
-      ty = y * (1 + 75 / dist);
-      // ponytail: add a Z offset (+35) to camera position to ensure tilted perspective and avoid edge-on flatness
-      tz = z * (1 + 75 / dist) + 35;
-    }
-
-    graphRef.current.cameraPosition({ x: tx, y: ty, z: tz }, { x, y, z }, 1200);
-  }, [focusSelectedTrigger]);
-
-  // Camera Event: Focus Root Node
-  useEffect(() => {
-    if (!graphRef.current || focusRootTrigger === 0) return;
-
-    const rootNode = nodes.find(n => n.isRoot || n.depth === 0) || nodes[0];
-    if (!rootNode) return;
-
-    const x = rootNode.x ?? 0;
-    const y = rootNode.y ?? 0;
-    const z = rootNode.z ?? 0;
-
-    // ponytail: look at the root node from a tilted angle (y offset and z offset) rather than directly overhead
-    graphRef.current.cameraPosition({ x: x, y: y - 45, z: z + 75 }, { x, y, z }, 1200);
-  }, [focusRootTrigger]);
-
-  // Camera Event: Fit Screen
-  useEffect(() => {
-    if (!graphRef.current || fitScreenTrigger === 0) return;
-    graphRef.current.zoomToFit(1200, 40);
-  }, [fitScreenTrigger]);
+  useGraphCamera({
+    graphRef,
+    nodes,
+    selectedNode,
+    resetZoomTrigger,
+    focusSelectedTrigger,
+    focusRootTrigger,
+    fitScreenTrigger,
+  });
 
   return (
     <div

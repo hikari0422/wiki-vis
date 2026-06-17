@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import * as d3 from 'd3';
 import { X, TrendingUp, Compass, Network } from 'lucide-react';
-import { getGlobalStats } from '../services/firebase';
+import { getGlobalStats } from '../../services/firebase';
 
 interface GlobalStatsDashboardProps {
   isOpen: boolean;
@@ -97,9 +97,9 @@ export const GlobalStatsDashboard: React.FC<GlobalStatsDashboardProps> = ({ isOp
       .enter()
       .append('rect')
       .attr('x', d => x(d.title) || 0)
-      .attr('y', d => y(0))
+      .attr('y', () => y(0))
       .attr('width', x.bandwidth())
-      .attr('height', d => height - y(0))
+      .attr('height', () => height - y(0))
       .attr('fill', 'url(#barGradient)')
       .attr('rx', 4)
       .attr('ry', 4);
