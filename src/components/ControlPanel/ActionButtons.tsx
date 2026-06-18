@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, Trash2, Sliders, TrendingUp, History, Layers } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useAlert } from '../../hooks/useAlert';
 
 interface ActionButtonsProps {
   onResetView: () => void;
@@ -36,6 +37,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
   isMobile = false
 }) => {
   const { t } = useLanguage();
+  const { confirm } = useAlert();
 
   const getBtnClass = (isActive: boolean, isDanger = false, disabled = false) => {
     const base = `p-2 rounded-xl transition-all active:scale-95 border border-slate-200/10 dark:border-slate-800/10 cursor-pointer flex justify-center ${isMobile ? 'flex-1' : ''}`;
@@ -109,8 +111,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
       </button>
 
       <button
-        onClick={() => {
-          if (window.confirm(t.confirmClearBoard)) onClearBoard();
+        onClick={async () => {
+          if (await confirm(t.confirmClearBoard)) onClearBoard();
         }}
         disabled={nodeCount === 0}
         className={getBtnClass(false, true, nodeCount === 0)}

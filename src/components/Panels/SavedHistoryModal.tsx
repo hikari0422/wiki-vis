@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Calendar, Network, Trash2, FolderOpen, Loader2, Clock } from 'lucide-react';
 import { getUserSavedGraphs, deleteSavedGraph, type SavedGraph } from '../../services/firebase';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useAlert } from '../../hooks/useAlert';
 
 interface SavedHistoryModalProps {
   userId: string;
@@ -17,6 +18,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
   onLoadGraph,
 }) => {
   const { language, t } = useLanguage();
+  const { alert, confirm } = useAlert();
   const [graphs, setGraphs] = useState<SavedGraph[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
 
   const handleDelete = async (e: React.MouseEvent, docId: string) => {
     e.stopPropagation();
-    if (!window.confirm(t.confirmDeleteSaved)) return;
+    if (!(await confirm(t.confirmDeleteSaved))) return;
 
     setDeletingId(docId);
     try {
@@ -54,7 +56,7 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
       setGraphs((prev) => prev.filter((g) => g.id !== docId));
     } catch (err) {
       console.error(err);
-      alert(t.deleteFailed);
+      await alert(t.deleteFailed);
     } finally {
       setDeletingId(null);
     }

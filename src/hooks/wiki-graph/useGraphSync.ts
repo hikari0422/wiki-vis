@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
 import type { WikiNode, WikiLink } from '../../types/wiki';
 import { saveGraphToFirestore, type SavedGraph } from '../../services/firebase';
+import { useAlert } from '../useAlert';
 
 interface UseGraphSyncProps {
   user: User | null;
@@ -57,6 +58,7 @@ export function useGraphSync({
   setClickHistory,
 }: UseGraphSyncProps) {
   const [saveLoading, setSaveLoading] = useState<boolean>(false);
+  const { alert } = useAlert();
 
   const stateRef = useRef({ user, nodes, links, expandedNodeIds, layoutMode, layoutMode3D, viewMode, limit, isDirty, saveLoading, exploredLinksMap, clickHistory });
   useEffect(() => {
@@ -141,12 +143,12 @@ export function useGraphSync({
 
   const handleSaveGraph = async (title: string) => {
     if (!user) {
-      alert('請先登入帳戶！');
+      await alert('請先登入帳戶！');
       return;
     }
     const rootNode = nodes.find(n => n.isRoot);
     if (!rootNode) {
-      alert('看板為空，無法儲存。');
+      await alert('看板為空，無法儲存。');
       return;
     }
     
