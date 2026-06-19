@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BookOpen, X } from 'lucide-react';
 import readmeRaw from '../../../README.md?raw';
 
