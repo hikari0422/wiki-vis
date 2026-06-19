@@ -132,7 +132,7 @@ const translations: Record<Language, TranslationDict> = {
   zh: {
     // Brand
     brandTitleEmpty: "Wiki Vision",
-    brandTitleFloating: "Wiki MindMap",
+    brandTitleFloating: "Wiki Vision",
     brandSub: "探索wiki條目之間的關係",
     // Search
     searchPlaceholder: "貼上維基網址或輸入關鍵字搜尋...",
@@ -257,7 +257,7 @@ const translations: Record<Language, TranslationDict> = {
   en: {
     // Brand
     brandTitleEmpty: "Wiki Vision",
-    brandTitleFloating: "Wiki MindMap",
+    brandTitleFloating: "Wiki Vision",
     brandSub: "Explore relationships between Wikipedia articles",
     // Search
     searchPlaceholder: "Paste Wikipedia URL or enter keywords...",
