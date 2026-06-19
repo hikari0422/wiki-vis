@@ -89,7 +89,6 @@ export interface TranslationDict {
   understandBtn: string;
   // Saved history modal
   historyTitle: string;
-  savedLimit: (len: number) => string;
   loadingSaved: string;
   loadSavedError: string;
   retryBtn: string;
@@ -216,8 +215,7 @@ const translations: Record<Language, TranslationDict> = {
     understandBtn: "我瞭解了",
     // Saved history modal
     historyTitle: "我的歷史存檔紀錄",
-    savedLimit: (len: number) => `儲存數量限制：${len} / 20 個`,
-    loadingSaved: "正在讀取雲端存檔...",
+    loadingSaved: "正在載入您的存檔...",
     loadSavedError: "載入雲端存檔失敗，請確認資料庫已正確設定。",
     retryBtn: "重新整理",
     noSavedTitle: "尚無雲端存檔",
@@ -340,9 +338,8 @@ const translations: Record<Language, TranslationDict> = {
     quickStep4: "Restart the Vite dev server (npm run dev)",
     understandBtn: "Got it",
     // Saved history modal
-    historyTitle: "My Saved Cloud Archives",
-    savedLimit: (len: number) => `Storage limit: ${len} / 20 saved`,
-    loadingSaved: "Loading archives from cloud...",
+    historyTitle: "My History",
+    loadingSaved: "Loading your saves...",
     loadSavedError: "Failed to load saved archives. Make sure database rules are set up correctly.",
     retryBtn: "Refresh",
     noSavedTitle: "No Archives Saved",
