@@ -105,8 +105,7 @@ export const getUserSavedGraphs = async (userId: string): Promise<SavedGraph[]> 
 /**
  * Save current graph to Firestore:
  * - If user already has a saved graph with the same rootTitle, we OVERWRITE it.
- * - Otherwise, we check if they already have 20 saves. If yes, throw limit error.
- * - If not, we create a NEW save.
+ * - Otherwise, we create a NEW save.
  */
 export const saveGraphToFirestore = async (graph: Omit<SavedGraph, 'createdAt' | 'updatedAt'>): Promise<{ id: string, operation: 'create' | 'update' }> => {
   if (!db) {
@@ -135,11 +134,6 @@ export const saveGraphToFirestore = async (graph: Omit<SavedGraph, 'createdAt' |
       
       return { id: matchedGraph.id, operation: 'update' };
     } else {
-      // New save. Enforce 20 limit check first.
-      if (existing.length >= 20) {
-        throw new Error('您已達到 20 個雲端存檔上限，請先至「歷史存檔」中刪除舊的存檔再進行儲存。');
-      }
-
       // Add new document
       const collRef = collection(db, 'saved_graphs');
       const docRef = await addDoc(collRef, {
