@@ -101,6 +101,7 @@ export function useWikiGraph(user: User | null) {
     });
   }, []);
 
+
   const rebuildGraph = useCallback((currentNodes: WikiNode[], currentLinks: WikiLink[], currentLimit: number) => {
     const rootNodes = currentNodes.filter(n => n.isRoot);
     if (rootNodes.length === 0 && currentNodes.length > 0) {

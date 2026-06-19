@@ -258,6 +258,10 @@ export async function fetchWikiLinks(
         if (cutoffReached) return;
 
         const a = el as HTMLAnchorElement;
+        
+        // Skip 'red links' that point to non-existent Wikipedia pages
+        if (a.classList.contains('new')) return;
+
         const href = a.getAttribute('href');
         if (!href) return;
 
@@ -368,3 +372,112 @@ export async function fetchWikiSummary(
     };
   }
 }
+
+/**
+ * Fetches random Wikipedia article titles.
+ */
+export async function fetchRandomWikiTitles(lang: string, limit: number = 2): Promise<string[]> {
+  // Use generator=random so we can fetch varianttitles in the same request to support Traditional Chinese conversion
+  const url = `https://${lang}.wikipedia.org/w/api.php?action=query&generator=random&grnnamespace=0&grnlimit=${limit}&prop=info&inprop=varianttitles&format=json&origin=*`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to fetch random articles');
+    const data = await res.json();
+    const pages = data.query?.pages;
+    if (pages) {
+      return Object.values(pages).map((page: any) => {
+        // Automatically prefer Traditional Chinese if available for 'zh' language
+        if (lang === 'zh' && page.varianttitles) {
+          return page.varianttitles['zh-tw'] || page.varianttitles['zh-hant'] || page.title;
+        }
+        return page.title;
+      });
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching random articles:', error);
+    return [];
+  }
+}
+
+/**
+ * Filters a list of titles to those that actually exist on Wikipedia.
+ * Uses prop=info (existence check only) - no fragile extract matching.
+ * Returns up to 'limit' valid titles.
+ */
+export async function filterValidWikiTitles(
+  titles: string[],
+  lang: string,
+  limit: number,
+  variant?: string
+): Promise<string[]> {
+  const validTitles: string[] = [];
+  const batchSize = 20;
+
+  for (let i = 0; i < titles.length; i += batchSize) {
+    if (validTitles.length >= limit) break;
+
+    const batch = titles.slice(i, i + batchSize);
+    const titlesStr = batch.map(t => encodeURIComponent(t)).join('|');
+    const url = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=info&inprop=varianttitles&format=json&origin=*&redirects=1&converttitles=1&titles=${titlesStr}${variant ? `&variant=${variant}` : ''}`;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const pages = data.query?.pages;
+      if (!pages) continue;
+
+      // Build a set of resolved titles that actually exist (positive pageid, no 'missing')
+      const existingTitles = new Set<string>();
+      for (const page of Object.values(pages) as any[]) {
+        if (!page.missing && page.pageid > 0) {
+          existingTitles.add(page.title.toLowerCase());
+          if (page.varianttitles) {
+            for (const vt of Object.values(page.varianttitles) as string[]) {
+              existingTitles.add(vt.toLowerCase());
+            }
+          }
+        }
+      }
+
+      // Resolve title through Wikipedia's chain SEQUENTIALLY:
+      // normalized -> converted -> redirects (output of each feeds next)
+      const resolveTitle = (t: string): string => {
+        let cur = t;
+        const chains = [data.query.normalized, data.query.converted, data.query.redirects];
+        for (const chain of chains) {
+          if (!chain) continue;
+          const match = chain.find((e: any) => e.from.toLowerCase() === cur.toLowerCase());
+          if (match) cur = match.to; // feed resolved value into next chain step
+        }
+        return cur;
+      };
+
+      // Deduplicate: track which resolved pages we've already counted this batch
+      const seenResolved = new Set<string>();
+
+      for (const title of batch) {
+        const resolved = resolveTitle(title).toLowerCase();
+        const found = existingTitles.has(resolved) || existingTitles.has(title.toLowerCase());
+        const resolvedKey = found ? resolved : null;
+
+        if (found) {
+          if (resolvedKey && seenResolved.has(resolvedKey)) {
+            // skip duplicate pages
+          } else {
+            if (resolvedKey) seenResolved.add(resolvedKey);
+            validTitles.push(title);
+            if (validTitles.length >= limit) break;
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error('Error filtering wiki titles:', error);
+    }
+  }
+
+  return validTitles;
+}
+

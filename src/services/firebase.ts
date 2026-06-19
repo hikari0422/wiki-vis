@@ -222,8 +222,8 @@ export const getGlobalStats = async () => {
     if (metricsSnap.exists()) {
       const data = metricsSnap.data();
       if (data.totalSessions > 0) {
-        averageNodes = Math.round((data.totalNodesExplored / data.totalSessions) * 10) / 10;
-        averageDepth = Math.round((data.totalDepthSum / data.totalSessions) * 10) / 10;
+        averageNodes = Math.round(((data.totalNodesExplored || 0) / data.totalSessions) * 10) / 10 || 0;
+        averageDepth = Math.round(((data.totalDepthSum || 0) / data.totalSessions) * 10) / 10 || 0;
       }
     }
 

@@ -67,8 +67,11 @@ export function getLinkPath(
   const targetRx = getNodeRadiusX(target);
   const targetRy = getNodeRadiusY(target);
 
-  if (layoutMode === 'hierarchical') {
-    const midY = (py + cy) / 2;
+  if (layoutMode === 'hierarchical' && Math.abs(py - cy) > 10) {
+    const rand = getDeterministicRandom(sourceId);
+    // Add deterministic offset between -25 and +25 to prevent horizontal trunk overlap
+    const yOffset = (rand - 0.5) * 50; 
+    const midY = (py + cy) / 2 + yOffset;
     const arrowCompensation = 7;
     const targetYOffset = cy > midY ? -(targetRy + arrowCompensation) : targetRy + arrowCompensation;
     return `M ${px} ${py} L ${px} ${midY} L ${cx} ${midY} L ${cx} ${cy + targetYOffset}`;
