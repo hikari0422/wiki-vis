@@ -12,6 +12,7 @@ import { SidebarToggleButton } from './components/Common/SidebarToggleButton';
 import { ThemeToggle } from './components/Common/ThemeToggle';
 import { LanguageSelector } from './components/Common/LanguageSelector';
 import { GlobalStatsDashboard } from './components/Panels/GlobalStatsDashboard';
+import { TutorialModal, TutorialButton } from './components/Common/TutorialModal';
 
 import { useWikiAuth } from './hooks/useWikiAuth';
 import { useWikiGraph } from './hooks/wiki-graph';
@@ -42,6 +43,9 @@ export default function App() {
 
   // Global Stats state
   const [isGlobalStatsOpen, setIsGlobalStatsOpen] = useState(false);
+
+  // Tutorial Modal state
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
   // 2. Graph state machine hook
   const {
@@ -268,6 +272,18 @@ export default function App() {
       <GlobalStatsDashboard
         isOpen={isGlobalStatsOpen}
         onClose={() => setIsGlobalStatsOpen(false)}
+      />
+
+      {/* Tutorial Floating Button */}
+      <TutorialButton 
+        onClick={() => setIsTutorialOpen(true)}
+        className={nodes.length > 0 ? "bottom-[220px] left-4 md:bottom-[160px] md:left-4" : "bottom-4 left-4"}
+      />
+
+      {/* Tutorial Modal */}
+      <TutorialModal 
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
       />
     </main>
   );
