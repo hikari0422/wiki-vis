@@ -87,9 +87,6 @@ export const SavedHistoryModal: React.FC<SavedHistoryModalProps> = ({
               <FolderOpen className="w-5.5 h-5.5 text-indigo-600 dark:text-indigo-400" />
               {t.historyTitle}
             </h2>
-            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">
-              {t.savedLimit(graphs.length)}
-            </p>
           </div>
           <button
             onClick={onClose}
