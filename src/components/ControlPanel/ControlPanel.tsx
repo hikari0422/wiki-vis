@@ -4,6 +4,7 @@ import { useLanguage } from '../../hooks/useLanguage';
 import { SearchForm } from './SearchForm';
 import { ActionButtons } from './ActionButtons';
 import { SettingsDrawer } from './SettingsDrawer';
+import { fetchRandomWikiTitles } from '../../services/wikiApi';
 
 interface ControlPanelProps {
   onSearch: (input: string, lang: string) => void;
@@ -59,6 +60,25 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [lang, setLang] = useState<string>('zh');
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showMobileToolbar, setShowMobileToolbar] = useState<boolean>(false);
+
+  const [randomRecommendations, setRandomRecommendations] = useState<string[]>([]);
+  const [isFetchingRandoms, setIsFetchingRandoms] = useState<boolean>(true);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    setIsFetchingRandoms(true);
+    fetchRandomWikiTitles(language, 2).then(titles => {
+      if (isMounted) {
+        if (titles.length === 0) {
+          setRandomRecommendations(language === 'zh' ? ['宇宙', '人工智能'] : ['Universe', 'Artificial Intelligence']);
+        } else {
+          setRandomRecommendations(titles);
+        }
+        setIsFetchingRandoms(false);
+      }
+    });
+    return () => { isMounted = false; };
+  }, [language]);
 
   const containerClasses = hasNodes
     ? "fixed top-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:max-w-3xl z-30 flex flex-col gap-2.5 pointer-events-none transition-all duration-700 ease-in-out"
@@ -135,20 +155,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         {!hasNodes && (
           <div className="flex gap-2.5 justify-center mt-1 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <span className="text-xs font-semibold text-slate-400 dark:text-slate-550 self-center mr-1">{t.recommendTitle}</span>
-            <button
-              type="button"
-              onClick={() => onSearch(language === 'zh' ? '宇宙' : 'Universe', language === 'zh' ? 'zh' : 'en')}
-              className="text-xs font-semibold px-4 py-2 bg-slate-50 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-slate-200/80 dark:border-slate-700/80 hover:border-indigo-200 dark:hover:border-indigo-950 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 rounded-xl shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
-            >
-              {language === 'zh' ? '宇宙 🚀' : 'Universe 🚀'}
-            </button>
-            <button
-              type="button"
-              onClick={() => onSearch(language === 'zh' ? '人工智能' : 'Artificial Intelligence', language === 'zh' ? 'zh' : 'en')}
-              className="text-xs font-semibold px-4 py-2 bg-slate-50 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-slate-200/80 dark:border-slate-700/80 hover:border-indigo-200 dark:hover:border-indigo-950 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 rounded-xl shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
-            >
-              {language === 'zh' ? '人工智能 🧠' : 'AI 🧠'}
-            </button>
+            {isFetchingRandoms ? (
+              <span className="text-xs font-semibold px-4 py-2 text-slate-400 animate-pulse">...</span>
+            ) : randomRecommendations.map((title, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => onSearch(title, language)}
+                className="text-xs font-semibold px-4 py-2 bg-slate-50 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-slate-200/80 dark:border-slate-700/80 hover:border-indigo-200 dark:hover:border-indigo-950 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 rounded-xl shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+              >
+                {title}
+              </button>
+            ))}
           </div>
         )}
       </div>

@@ -221,13 +221,10 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     const targetScale = 1.25;
 
     const isMobileViewport = w < 768;
-    let centerX = w / 2;
-    let centerY = h / 2;
-    if (isMobileViewport) {
-      centerY = h * 0.22;
-    } else {
-      centerX = w * 0.35;
-    }
+    // On desktop: left panel is ~140px wide, so true visual center shifts right
+    const leftPanelOffset = isMobileViewport ? 0 : 70;
+    const centerX = w / 2 + leftPanelOffset;
+    const centerY = isMobileViewport ? h * 0.3 : h / 2;
 
     svg.transition()
       .duration(750)
@@ -372,8 +369,9 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
         if (incomingLink) {
           const parentNode = nodes.find((n) => n.id === incomingLink.source);
           if (parentNode && parentNode.x !== undefined && parentNode.y !== undefined) {
-            node.x = parentNode.x + (Math.random() - 0.5) * 20;
-            node.y = parentNode.y + (Math.random() - 0.5) * 20;
+            const jitter = layoutMode === 'radial' ? 120 : 20;
+            node.x = parentNode.x + (Math.random() - 0.5) * jitter;
+            node.y = parentNode.y + (Math.random() - 0.5) * jitter;
           }
         }
       }
@@ -416,25 +414,47 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
       radialRadii[d] = currentRadius;
     }
 
+    if (layoutChanged && layoutMode === 'radial') {
+      let minX = Infinity;
+      let maxX = -Infinity;
+      nodes.forEach((n) => {
+        if (n.x !== undefined && (n.depth ?? 0) > 0) {
+          minX = Math.min(minX, n.x);
+          maxX = Math.max(maxX, n.x);
+        }
+      });
+      const paddingX = 150;
+      const rangeX = (maxX > minX ? maxX - minX : 1) + paddingX * 2;
+      const startX = minX - paddingX;
+      
+      nodes.forEach((node) => {
+        const d = node.depth ?? 0;
+        if (d > 0 && node.x !== undefined) {
+          // Map original horizontal X to an angle around the circle
+          const angle = ((node.x - startX) / rangeX) * Math.PI * 2 - Math.PI / 2;
+          const r = radialRadii[d] || 0;
+          node.x = Math.cos(angle) * r + (Math.random() - 0.5) * 30;
+          node.y = Math.sin(angle) * r + (Math.random() - 0.5) * 30;
+        } else if (d === 0) {
+          node.x = (Math.random() - 0.5) * 10;
+          node.y = (Math.random() - 0.5) * 10;
+        }
+      });
+    }
+
     const simulation = d3.forceSimulation<WikiNode, WikiLink>(nodes)
       .force('link', d3.forceLink<WikiNode, WikiLink>(cleanLinks)
         .id((d) => d.id)
-        .distance((link) => {
+        .distance(() => {
           if (layoutMode === 'hierarchical') {
             return 110;
           } else {
-            const source = link.source as unknown as WikiNode;
-            const target = link.target as unknown as WikiNode;
-            const srcDepth = source.depth ?? 0;
-            const tgtDepth = target.depth ?? 0;
-            const srcR = radialRadii[srcDepth] || 0;
-            const tgtR = radialRadii[tgtDepth] || 0;
-            return Math.max(130, tgtR - srcR);
+            return 140; // Constant distance allows organic clusters where children surround parents
           }
         })
         .strength(0.7)
       )
-      .force('charge', d3.forceManyBody().strength(layoutMode === 'hierarchical' ? -400 : -250).distanceMax(500))
+      .force('charge', d3.forceManyBody().strength(layoutMode === 'hierarchical' ? -400 : -600).distanceMax(800))
       .force('collide', d3.forceCollide<WikiNode>().radius((d) => getNodeRadiusX(d) + 16).iterations(2));
 
     if (layoutMode === 'hierarchical') {
@@ -442,9 +462,11 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
         .force('y', d3.forceY<WikiNode>().y((d) => (d.depth ?? 0) * 160).strength(0.95))
         .force('x', d3.forceX<WikiNode>().x(0).strength(0.06));
     } else {
+      // Remove concentric forceRadial so children naturally orbit their parents in a standard force layout
       simulation
-        .force('radial', d3.forceRadial<WikiNode>((d) => radialRadii[d.depth ?? 0] || 0, 0, 0).strength(0.85))
-        .force('center', d3.forceCenter(0, 0).strength(0.05));
+        .force('center', d3.forceCenter(0, 0).strength(0.02))
+        .force('x', d3.forceX<WikiNode>().x(0).strength(0.015))
+        .force('y', d3.forceY<WikiNode>().y(0).strength(0.015));
     }
 
     simulationRef.current = simulation;
@@ -536,7 +558,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
         })
     );
 
-    simulation.alpha(0.8).restart();
+    simulation.alpha(layoutChanged ? 1 : 0.8).restart();
 
     return () => {
       simulation.stop();

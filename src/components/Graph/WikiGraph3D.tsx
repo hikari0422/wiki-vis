@@ -257,9 +257,16 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       node.fx = null;
       node.fy = null;
       node.fz = null;
-      // ponytail: randomize Z to break flat 2D plane symmetry and allow 3D forces to expand the graph
-      if (node.z === undefined || node.z === 0) {
-        node.z = (Math.random() - 0.5) * 60;
+      // Break 1D/2D symmetry by ensuring all axes have some randomness
+      if (node.x === undefined || (node.x === 0 && node.y === 0 && (node.z === undefined || node.z === 0))) {
+        node.x = (Math.random() - 0.5) * 100;
+        node.y = (Math.random() - 0.5) * 100;
+        node.z = (Math.random() - 0.5) * 100;
+      } else if (node.z === undefined || node.z === 0) {
+        node.z = (Math.random() - 0.5) * 100;
+        // Also add slight jitter to x and y to prevent perfectly collinear nodes
+        node.x = (node.x || 0) + (Math.random() - 0.5) * 20;
+        node.y = (node.y || 0) + (Math.random() - 0.5) * 20;
       }
     });
     if (graphRef.current) {
@@ -413,8 +420,9 @@ export const WikiGraph3D: React.FC<WikiGraph3DProps> = ({
       return group;
     });
 
-    // Adjust core physics parameters
-    graph.d3Force('charge').strength(-150);
+    // Adjust core physics parameters to encourage organic 3D folding rather than a taught straight chain
+    graph.d3Force('link').distance(50);
+    graph.d3Force('charge').strength(-200).distanceMax(400);
     
     // Add collision force to prevent text nodes overlapping
     graph.d3Force('collide', d3.forceCollide((node: any) => {
