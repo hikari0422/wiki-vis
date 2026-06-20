@@ -133,7 +133,7 @@ export function useWikiGraph(user: User | null) {
       const parentNode = nodeMap.get(parentId);
       if (!parentNode) continue;
 
-      const wikiChildren = exploredLinksMap[parentId] || [];
+      const wikiChildren = exploredLinksMap[`${parentNode.lang}:${parentId}`] || exploredLinksMap[parentId] || [];
       const wikiChildrenSet = new Set(wikiChildren);
 
       // Find manually added children from current links
@@ -421,8 +421,9 @@ export function useWikiGraph(user: User | null) {
 
     try {
       let allTitles: string[];
-      if (exploredLinksMap[node.id]) {
-        allTitles = exploredLinksMap[node.id];
+      const cacheKey = `${node.lang}:${node.id}`;
+      if (exploredLinksMap[cacheKey] || exploredLinksMap[node.id]) {
+        allTitles = exploredLinksMap[cacheKey] || exploredLinksMap[node.id];
       } else {
         const onResolve = (resolved: string) => {
           setNodes((prevNodes) => {
@@ -457,7 +458,7 @@ export function useWikiGraph(user: User | null) {
         allTitles = await fetchWikiLinks(node.id, node.lang, 0, onResolve, node.variant);
         setExploredLinksMap((prev) => ({
           ...prev,
-          [node.id]: allTitles,
+          [cacheKey]: allTitles,
         }));
       }
 
@@ -706,6 +707,7 @@ export function useWikiGraph(user: User | null) {
   const handleReSearch = async (node: WikiNode) => {
     setExploredLinksMap((prev) => {
       const updated = { ...prev };
+      delete updated[`${node.lang}:${node.id}`];
       delete updated[node.id];
       return updated;
     });
@@ -761,7 +763,7 @@ export function useWikiGraph(user: User | null) {
       
       setExploredLinksMap((prev) => ({
         ...prev,
-        [node.id]: allTitles,
+        [`${node.lang}:${node.id}`]: allTitles,
       }));
 
       if (allTitles.length === 0) {

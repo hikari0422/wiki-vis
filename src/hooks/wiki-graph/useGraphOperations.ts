@@ -76,8 +76,9 @@ export function useGraphOperations({
 
     try {
       let allTitles: string[];
-      if (exploredLinksMap[node.id]) {
-        allTitles = exploredLinksMap[node.id];
+      const cacheKey = `${node.lang}:${node.id}`;
+      if (exploredLinksMap[cacheKey] || exploredLinksMap[node.id]) {
+        allTitles = exploredLinksMap[cacheKey] || exploredLinksMap[node.id];
       } else {
         const onResolve = (resolved: string) => {
           setNodes((prevNodes) => {
@@ -112,7 +113,7 @@ export function useGraphOperations({
         allTitles = await fetchWikiLinks(node.id, node.lang, 0, onResolve, node.variant);
         setExploredLinksMap((prev) => ({
           ...prev,
-          [node.id]: allTitles,
+          [cacheKey]: allTitles,
         }));
       }
 
@@ -389,6 +390,7 @@ export function useGraphOperations({
   const handleReSearch = async (node: WikiNode) => {
     setExploredLinksMap((prev) => {
       const updated = { ...prev };
+      delete updated[`${node.lang}:${node.id}`];
       delete updated[node.id];
       return updated;
     });
@@ -444,7 +446,7 @@ export function useGraphOperations({
       
       setExploredLinksMap((prev) => ({
         ...prev,
-        [node.id]: allTitles,
+        [`${node.lang}:${node.id}`]: allTitles,
       }));
 
       if (allTitles.length === 0) {
