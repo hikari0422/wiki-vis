@@ -1,5 +1,5 @@
-import React from 'react';
-import { Search, Globe } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Search, Globe, ChevronDown, Check } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 
 interface SearchFormProps {
@@ -22,6 +22,18 @@ export const SearchForm: React.FC<SearchFormProps> = ({
   hasNodes
 }) => {
   const { t } = useLanguage();
+  const [isLangOpen, setIsLangOpen] = useState(false);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setIsLangOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleLangChange = (newLang: string) => {
     setLang(newLang);
@@ -55,19 +67,37 @@ export const SearchForm: React.FC<SearchFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className={formClasses}>
-      <div className="flex items-center gap-1 text-slate-500 border-r border-slate-200 pr-2 shrink-0">
-        <Globe className="w-4 h-4 text-slate-400" />
-        <select
-          value={lang}
-          onChange={(e) => handleLangChange(e.target.value)}
-          className="text-xs font-semibold bg-transparent focus:outline-none cursor-pointer pr-1"
+      <div className="relative flex items-center border-r border-slate-200 dark:border-slate-700 pr-2 shrink-0" ref={langDropdownRef}>
+        <button
+          type="button"
+          onClick={() => setIsLangOpen(!isLangOpen)}
+          className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors p-1 rounded-md"
         >
-          {languages.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.code.toUpperCase()}
-            </option>
-          ))}
-        </select>
+          <Globe className="w-4 h-4 shrink-0" />
+          <span className="text-xs font-bold w-6 text-center">{lang.toUpperCase()}</span>
+          <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-70" />
+        </button>
+
+        {isLangOpen && (
+          <div className="absolute top-full left-0 mt-2 w-48 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-xl py-2 flex flex-col z-50 animate-in slide-in-from-top-2 duration-200">
+            {languages.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => {
+                  handleLangChange(l.code);
+                  setIsLangOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer text-left transition-colors"
+              >
+                <span>{l.name}</span>
+                {lang === l.code && (
+                  <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <input

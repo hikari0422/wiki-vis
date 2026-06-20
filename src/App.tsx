@@ -114,7 +114,7 @@ export default function App() {
   return (
     <main className="w-full h-full relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {/* Top Right Actions */}
-      <div className="fixed top-4 right-4 z-40 flex items-center gap-2.5 pointer-events-none">
+      <div className={`fixed top-4 right-4 z-40 items-center gap-2.5 pointer-events-none ${nodes.length > 0 ? 'hidden md:flex' : 'flex'}`}>
         <LanguageSelector />
         <ThemeToggle theme={theme} toggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />
         <UserAuth user={user} onLoadGraph={handleLoadGraph} />
@@ -124,8 +124,8 @@ export default function App() {
       {nodes.length > 0 ? (
         viewMode === '3d' ? (
           <WikiGraph3D
-            nodes={nodes}
-            links={links}
+            nodes={visibleNodes}
+            links={visibleLinks}
             onNodeClick={handleNodeClick}
             onBackgroundClick={handleBackgroundClick}
             onNodeRightClick={handleNodeRightClick}
@@ -206,6 +206,13 @@ export default function App() {
         rootTitle={rootNode?.id || ''}
         isGlobalStatsOpen={isGlobalStatsOpen}
         onToggleGlobalStats={() => setIsGlobalStatsOpen(!isGlobalStatsOpen)}
+        rightActions={
+          <div className="flex md:hidden items-center justify-center w-full gap-2.5 pointer-events-auto">
+            <LanguageSelector />
+            <ThemeToggle theme={theme} toggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />
+            <UserAuth user={user} onLoadGraph={handleLoadGraph} />
+          </div>
+        }
       />
 
       {/* 3. Sliding Detail Reader Panel */}

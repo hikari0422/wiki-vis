@@ -33,7 +33,7 @@ export const LanguageSelector: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2.5 w-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-xl py-2 flex flex-col pointer-events-auto animate-in slide-in-from-top-2 duration-200">
+        <div className="absolute left-1/2 -translate-x-1/2 mt-2.5 w-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-xl py-2 flex flex-col pointer-events-auto animate-in slide-in-from-top-2 duration-200 z-50">
           {options.map((opt) => (
             <button
               key={opt.code}

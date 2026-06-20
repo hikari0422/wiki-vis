@@ -29,6 +29,7 @@ interface ControlPanelProps {
   rootTitle: string;
   isGlobalStatsOpen: boolean;
   onToggleGlobalStats: () => void;
+  rightActions?: React.ReactNode;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -54,6 +55,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   rootTitle,
   isGlobalStatsOpen,
   onToggleGlobalStats,
+  rightActions,
 }) => {
   const { language, t } = useLanguage();
   const [input, setInput] = useState<string>('');
@@ -89,9 +91,37 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     : "w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-2xl p-6 flex flex-col items-center gap-5 pointer-events-auto transition-all duration-700 ease-in-out";
 
   const actionProps = {
-    onResetView, onClearBoard, nodeCount, isHistoryOpen, onToggleHistory, showHistoryButton,
-    isSubArticlesOpen, onToggleSubArticles, showSubArticlesButton, isGlobalStatsOpen,
-    onToggleGlobalStats, showSettings, setShowSettings
+    onResetView: () => {
+      onResetView();
+      setShowMobileToolbar(false);
+    },
+    onClearBoard: () => {
+      onClearBoard();
+      setShowMobileToolbar(false);
+    },
+    nodeCount, 
+    isHistoryOpen, 
+    onToggleHistory: () => {
+      onToggleHistory();
+      setShowMobileToolbar(false);
+    }, 
+    showHistoryButton,
+    isSubArticlesOpen, 
+    onToggleSubArticles: () => {
+      onToggleSubArticles();
+      setShowMobileToolbar(false);
+    }, 
+    showSubArticlesButton, 
+    isGlobalStatsOpen,
+    onToggleGlobalStats: () => {
+      onToggleGlobalStats();
+      setShowMobileToolbar(false);
+    }, 
+    showSettings, 
+    setShowSettings: (val: boolean) => {
+      setShowSettings(val);
+      if (val) setShowMobileToolbar(false);
+    }
   };
 
   return (
@@ -173,8 +203,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {/* Mobile Secondary Expandable Toolbar */}
       {hasNodes && showMobileToolbar && (
-        <div className="w-full bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-lg p-2.5 flex justify-around items-center gap-1 pointer-events-auto md:hidden animate-in slide-in-from-top-2 duration-150">
-          <ActionButtons {...actionProps} isMobile />
+        <div className="w-full bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-lg p-2.5 flex flex-col gap-2 pointer-events-auto md:hidden animate-in slide-in-from-top-2 duration-150">
+          <div className="flex justify-around items-center gap-1 w-full">
+            <ActionButtons {...actionProps} isMobile />
+          </div>
+          {rightActions && (
+            <div className="flex justify-center items-center gap-2 pt-2 w-full border-t border-slate-200/50 dark:border-slate-700/50">
+              {rightActions}
+            </div>
+          )}
         </div>
       )}
 
