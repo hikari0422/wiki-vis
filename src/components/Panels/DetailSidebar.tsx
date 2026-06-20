@@ -41,6 +41,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
   // Cache only the last clicked node's summary data to prevent duplicate requests
   const lastFetchedRef = useRef<{
     nodeId: string;
+    lang: string;
     extract: string;
     thumbnail?: string;
     resolvedTitle?: string;
@@ -65,6 +66,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
       
       lastFetchedRef.current = {
         nodeId: node.id,
+        lang: node.lang,
         extract: data.extract,
         thumbnail: data.thumbnail,
         resolvedTitle: data.resolvedTitle,
@@ -93,7 +95,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
     const loadSummary = async () => {
       // Check cache first (only cache the last selected node)
       const cached = lastFetchedRef.current;
-      if (cached && cached.nodeId === node.id) {
+      if (cached && cached.nodeId === node.id && cached.lang === node.lang) {
         setSummary(cached.extract);
         setThumbnail(cached.thumbnail);
         if (cached.resolvedTitle && cached.resolvedTitle !== node.id) {
@@ -113,6 +115,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({
         
         lastFetchedRef.current = {
           nodeId: node.id,
+          lang: node.lang,
           extract: data.extract,
           thumbnail: data.thumbnail,
           resolvedTitle: data.resolvedTitle,

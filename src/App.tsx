@@ -176,7 +176,7 @@ export default function App() {
       <SubArticlesPanel
         key={selectedNode ? selectedNode.id : 'empty'}
         selectedNode={selectedNode}
-        allSubArticles={selectedNode ? (exploredLinksMap[selectedNode.id] || []) : []}
+        allSubArticles={selectedNode ? (exploredLinksMap[`${selectedNode.lang}:${selectedNode.id}`] || exploredLinksMap[selectedNode.id] || []) : []}
         visibleNodeIds={new Set(nodes.map(n => n.id))}
         onAddSubArticle={handleAddSubArticle}
         isOpen={isSubArticlesOpen}
@@ -198,7 +198,7 @@ export default function App() {
         showHistoryButton={clickHistory.length > 0}
         isSubArticlesOpen={isSubArticlesOpen}
         onToggleSubArticles={toggleSubArticles}
-        showSubArticlesButton={selectedNode !== null && (exploredLinksMap[selectedNode.id] || []).length > 0}
+        showSubArticlesButton={selectedNode !== null && (exploredLinksMap[`${selectedNode.lang}:${selectedNode.id}`] || exploredLinksMap[selectedNode.id] || []).length > 0}
         isLoggedIn={!!user}
         isDirty={isDirty}
         onSaveGraph={handleSaveGraph}
