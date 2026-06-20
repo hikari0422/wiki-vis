@@ -380,6 +380,9 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
     nodes.forEach((node) => {
       node.fx = null;
       node.fy = null;
+      node.vx = 0;
+      node.vy = 0;
+      node.vz = 0;
     });
 
     const nodesByDepthForRadial: { [key: number]: WikiNode[] } = {};
@@ -613,14 +616,14 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
 
           {/* Links Layer */}
           <g className="links-layer">
-            {links.map((link, idx) => {
+            {links.map((link) => {
               const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
               const targetId = typeof link.target === 'string' ? link.target : link.target.id;
               const isSelectedPath = selectedNode && (selectedNode.id === sourceId || selectedNode.id === targetId);
 
               return (
                 <path
-                  key={`link-${sourceId}-${targetId}-${idx}`}
+                  key={`link-${sourceId}-${targetId}`}
                   className={`graph-link transition-colors duration-300 ${
                     isSelectedPath
                       ? 'stroke-indigo-500 dark:stroke-indigo-400'

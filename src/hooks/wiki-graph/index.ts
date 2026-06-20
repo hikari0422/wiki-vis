@@ -973,7 +973,6 @@ export function useWikiGraph(user: User | null) {
 
   const handleBackgroundClick = useCallback(() => {
     setSelectedNode(null);
-    setDeepestActiveId(null);
     setIsSidebarOpen(false);
     setContextMenu(null);
     if (isMobile) {
