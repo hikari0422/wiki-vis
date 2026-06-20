@@ -616,7 +616,7 @@ export const WikiGraph: React.FC<WikiGraphProps> = ({
 
           {/* Links Layer */}
           <g className="links-layer">
-            {links.map((link, idx) => {
+            {links.map((link) => {
               const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
               const targetId = typeof link.target === 'string' ? link.target : link.target.id;
               const isSelectedPath = selectedNode && (selectedNode.id === sourceId || selectedNode.id === targetId);
